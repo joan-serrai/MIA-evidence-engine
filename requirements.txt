@@ -1,0 +1,15 @@
+# Dependencias del proyecto MIA
+# Instálalas con:  pip install -r requirements.txt
+#
+# Mantenemos la lista mínima a propósito: añadiremos más (p. ej. frameworks
+# de agentes como LlamaIndex/LangChain) solo cuando los necesitemos.
+
+requests>=2.31        # llamadas a las APIs de PubMed y ClinicalTrials.gov
+python-dotenv>=1.0    # leer variables de entorno desde el archivo .env
+chromadb>=0.5         # base de datos vectorial local
+sentence-transformers>=3.0   # embeddings locales (BAAI/bge-small-en-v1.5)
+ollama>=0.3           # cliente Python para el LLM biomédico local
+streamlit>=1.36       # interfaz de usuario (chat)
+pandas>=2.0           # manejo de tablas/datos
+tqdm>=4.66            # barras de progreso al descargar/procesar
+openai>=1.0           # embeddings text-embedding-3-small SOLO para la evaluación comparativa

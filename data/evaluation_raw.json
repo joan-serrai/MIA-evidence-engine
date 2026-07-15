@@ -1,0 +1,422 @@
+[
+  {
+    "pregunta": "What is the efficacy of dupilumab in adults with moderate-to-severe atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "CONTEXT:\n[Doc 1] (clinicaltrials:NCT01979016) A Randomized, Double-Blind, Placebo-Controlled, Parallel-Group Study Investigating the Efficacy, Safety, Serum Concentration and Biomarker Profile of Dupilumab Administered to Adult Patients With Moderate-to-Severe Atopic Dermatitis\n[Doc 2] (pubmed:42220252) The Use of Dupilumab for Severe Atopic Dermatitis in Patients Aged Under 12-Years.\n[Doc 3] (clinicaltrials:NCT02277743) A Phase 3 Confirmatory Study Investigating the Efficacy and Safety of Dupilumab Monotherapy Administered to Adult Patients With Moderate-to-Severe Atopic Dermatitis\n[Doc 4] (clinicaltrials:NCT03738397) A Phase 3b Multicenter, Randomized, Double-Blind, Double-Dummy, Active Controlled Study Comparing the Safety and Efficacy of Upadacitinib to Dupilumab in Adult Subjects With Moderate to Severe Atopic Dermatitis\n[Doc 5] (pubmed:42265872) Real-World Efficacy of Dupilumab in Chinese Atopic Dermatitis Patients and Development of a Prediction Model.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is the efficacy of dupilumab in adults with moderate-to-severe atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], the primary objective of the study was to assess the efficacy of Dupilumab, compared to placebo, in adult patients with moderate-to-severe atopic dermatitis (AD). This suggests that the efficacy of dupilumab in adults with moderate-to-severe atopic dermatitis is being investigated.\n\nAdditionally, [Doc 3] and [Doc 4] are confirmatory studies investigating the efficacy and safety of Dupilumab monotherapy in adults with moderate-to-severe atopic dermatitis (AD). This implies that dupilumab has shown efficacy in treating adult patients with moderate-to-severe atopic dermatitis.\n\nHowever, it is important to note that these studies do not provide a specific numerical value for the efficacy of dupilumab. For more detailed information on the efficacy of dupilumab, you may want to consult the study results or publications related to these clinical trials.\n\nTherefore, based on the provided context, we can conclude that dupilumab has shown efficacy in treating adult patients with moderate-to-severe atopic dermatitis, but a specific numerical value for its efficacy is not available.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 4,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What are the most common adverse events associated with dupilumab?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "Adverse Event",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What are the most common adverse events associated with dupilumab?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], dupilumab was associated with more frequent conjunctivitis and worsening ocular symptoms. Additionally, [Doc 3] mentions that dupilumab is associated with injection site reactions.\n\nNote: The other documents do not provide information on the most common adverse events associated with dupilumab.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "How effective is upadacitinib for atopic dermatitis compared with placebo?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "[Doc 1] [Doc 2] [Doc 3] [Doc 4] [Doc 5]",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "How effective is upadacitinib for atopic dermatitis compared with placebo?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "Based on the provided context, it can be inferred that upadacitinib has shown efficacy in treating atopic dermatitis compared to placebo. However, specific data on its effectiveness is not explicitly stated.\n\n[Doc 1] mentions that the study aimed to evaluate the safety and efficacy of multiple doses of upadacitinib monotherapy versus placebo in the treatment of adults with moderate to severe atopic dermatitis (AD).\n\n[Doc 2], [Doc 3], and [Doc 5] all aim to assess the efficacy and safety of upadacitinib for the treatment of adolescent and adult participants with moderate to severe atopic dermatitis (AD) who are candidates for systemic therapy.\n\n[Doc 4] specifically aims to evaluate the efficacy and safety of upadacitinib in adult subjects with moderate to severe atopic dermatitis and inadequate response to dupilumab.\n\nWhile these studies suggest that upadacitinib has shown promise in treating atopic dermatitis, specific data on its effectiveness compared to placebo is not provided.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 3,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 3,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "What safety concerns are associated with JAK inhibitors in atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "{\"type of instruction\": \"Multiple Choice\", \"instruction\": \"What safety concerns are associated with JAK inhibitors in atopic dermatitis?\", \"choices\": [{\"text\": \"Increased risk of major adverse cardiovascular events (MACE) and malignancies, especially in patients with pre-existing risk factors.\", \"is_correct\": true}, {\"text\": \"Development of extensive cutaneous viral warts.\", \"is_correct\": false}, {\"text\": \"Boxed warning for real-world safety concerns including MACE and malignancies.\", \"is_correct\": true}, {\"text\": \"Increased risk of psoriasis and alopecia areata as side effects.\", \"is_correct\": false}], \"explanation\": \"[Doc 1] (pubmed:41774324) Mastering the Use of Systemic JAK Inhibitors for Atopic Dermatitis: A Dermatologist's Practical Guide. [Doc 2] (pubmed:42289185) Topical Janus Kinase Inhibitors for Pediatric Atopic Dermatitis: A Systematic Review of Efficacy and Safety. [Doc 3] (pubmed:41969186) Extensive cutaneous viral warts during JAK inhibitor therapy for atopic dermatitis. [Doc 4] (pubmed:41730179) Comparison chart: Interleukin (IL) antagonists and oral JAK inhibitors for moderate to severe atopic dermatitis. [Doc 5] (pubmed:41830903) Real-World Safety of JAK Inhibitors in Skin Immune-Mediated Inflammatory Diseases: Boxed Warning Outcomes from a Multinational Cohort Study.\"}",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What safety concerns are associated with JAK inhibitors in atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], JAK inhibitors for atopic dermatitis require careful patient selection and monitoring due to a side-effect profile which includes an increased risk of major adverse cardiovascular events (MACE) and malignancies, especially in patients with pre-existing risk factors. [Source: Doc 1]\n\nAdditionally, [Doc 5] reports that real-world safety outcomes from a multinational cohort study found that JAK inhibitors were associated with an increased risk of MACE and malignancies in patients with skin immune-mediated inflammatory diseases, including atopic dermatitis. [Source: Doc 5]\n\nFurthermore, [Doc 3] describes a case report of extensive cutaneous viral warts occurring during JAK inhibitor therapy for atopic dermatitis, suggesting that JAK inhibitors may also be associated with an increased risk of viral infections. [Source: Doc 3]\n\nIt is worth noting that the context does not mention other potential safety concerns associated with JAK inhibitors in atopic dermatitis, such as laboratory abnormalities or gastrointestinal side effects.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 3,\n  \"alucinacion\": 5,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 4,
+      "manejo_jerga": 3,
+      "alucinacion": 5,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "What is the mechanism of action of tralokinumab in atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The mechanism of action of tralokinumab in atopic dermatitis is it acts as an IL-17 inhibitor.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 2,\n  \"correccion_clinica\": 3,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 3,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 2,
+      "correccion_clinica": 3,
+      "manejo_jerga": 4,
+      "alucinacion": 3,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is the mechanism of action of tralokinumab in atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "The mechanism of action of tralokinumab in atopic dermatitis is not explicitly stated in the provided context. Therefore, I cannot provide an answer based on the available information.\n\nPlease note that if the context does not contain the answer, it's best to say so clearly and not invent anything.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 2,\n  \"manejo_jerga\": 3,\n  \"alucinacion\": 4,\n  \"tono\": 3\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 2,
+      "manejo_jerga": 3,
+      "alucinacion": 4,
+      "tono": 3
+    }
+  },
+  {
+    "pregunta": "How does abrocitinib affect itch (pruritus) in patients with atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "A) It reduces pruritus by 50% or more. B) It reduces pruritus by less than 50%. C) It has no effect on pruritus. D) It increases pruritus.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 2,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 2,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "How does abrocitinib affect itch (pruritus) in patients with atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 3], \"Itch Relief and Quality-of-Life Improvement with Abrocitinib and Dupilumab in Patients with Moderate-to-Severe Atopic Dermatitis: A Post Hoc Analysis of JADE COMPARE and JADE DARE\", abrocitinib was found to provide itch relief for patients with moderate-to-severe atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 5,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 5,
+      "correccion_clinica": 5,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is known about the efficacy of lebrikizumab in atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "ANSWER: Lebrikizumab has shown promising results in the treatment of moderate-to-severe atopic dermatitis, with a demonstrated improvement in disease severity and quality of life measures. However, further research is needed to fully understand its long-term safety profile and potential side effects.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is known about the efficacy of lebrikizumab in atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 2], lebrikizumab has been shown to be effective in moderate-to-severe atopic dermatitis in real-world clinical practice. Additionally, [Doc 5] reports a retrospective comparative study that found lebrikizumab to be effective in treating atopic dermatitis.\n\nIt is also mentioned in [Doc 3] that the main purpose of this study is to evaluate the efficacy and safety of lebrikizumab in combination with topical corticosteroids in Japanese participants with moderate-to-severe atopic dermatitis, suggesting that lebrikizumab has been shown to be effective in treating atopic dermatitis.\n\nHowever, it is important to note that these studies are not necessarily controlled trials and the results may vary depending on the population being studied.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 3,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 3,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is the role of nemolizumab in treating atopic dermatitis and pruritus?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The Answer is: Nemolizumab provides rapid and effective relief from pruritus in patients with atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is the role of nemolizumab in treating atopic dermatitis and pruritus?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], nemolizumab provides rapid and effective relief from pruritus in patients with atopic dermatitis. Additionally, [Doc 3] states that nemolizumab is a novel therapeutic option for moderate-to-severe atopic dermatitis, targeting the IL-31 receptor α-chain (IL-31RA). Furthermore, [Doc 4] reports that nemolizumab has shown efficacy and safety in treating atopic dermatitis compared to traditional systemic therapies. Therefore, the role of nemolizumab is to provide rapid and effective relief from pruritus and treat moderate-to-severe atopic dermatitis.\n\nSource: [Doc 1], [Doc 3], and [Doc 4]",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 5,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 5,
+      "correccion_clinica": 5,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What dosing regimens have been studied for baricitinib in atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "A) 2 mg once daily B) 4 mg once daily C) 1 mg twice daily D) 2 mg twice daily E) 4 mg twice daily",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 4,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What dosing regimens have been studied for baricitinib in atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "Based on the provided context, specifically [Doc 1], it appears that the dosing regimen for baricitinib in pediatric patients with atopic dermatitis has not been explicitly stated. The study aimed to optimize dosing using pharmacokinetic/pharmacodynamic modeling leveraging adult data.\n\nHowever, there is no information available regarding specific dosing regimens studied for baricitinib in atopic dermatitis from the provided context.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 2,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 3\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 2,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 3
+    }
+  },
+  {
+    "pregunta": "Is dupilumab effective in children and adolescents with atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "Yes, dupilumab is effective in children and adolescents with atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 4,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "Is dupilumab effective in children and adolescents with atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], the use of dupilumab for severe atopic dermatitis in patients aged under 12-years is discussed. However, it does not specifically address the effectiveness of dupilumab in children and adolescents.\n\n[Doc 2] provides friendly administration tips to enhance adherence in infants with atopic dermatitis, but it does not provide information on the effectiveness of dupilumab in children and adolescents.\n\n[Doc 3] mentions that clinical trials showed significant improvement of atopic dermatitis signs and symptoms in adolescent patients receiving dupilumab, but only for those with Eczema Area and Severity Index (EASI) score greater than or equal to (≥) 16. It does not provide information on the effectiveness of dupilumab in children with moderate to mild EASI scores.\n\n[Doc 4] reports that an injectable drug called dupilumab resulted in improved atopic dermatitis, regardless of whether patients also had asthma, allergic rhinitis (nasal allergy), or food allergy. This study included infants and children aged 6 months to 5 years with moderate-to-severe atopic dermatitis.\n\n[Doc 5] discusses the real-world efficacy of dupilumab in Chinese atopic dermatitis patients and development of a prediction model, but it does not specifically address the effectiveness of dupilumab in children and adolescents.\n\nBased on the available information, we can conclude that [Doc 4] provides evidence that dupilumab is effective in young children with atopic dermatitis, regardless of whether they have comorbidities.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What are the long-term safety findings for upadacitinib in atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The long-term safety findings for upadacitinib in atopic dermatitis include a low incidence of serious adverse events, no clinically significant differences in vital signs or laboratory parameters between upadacitinib and placebo groups, and an overall acceptable tolerability profile. These findings suggest that upadacitinib is safe for use in the long-term management of moderate-to-severe atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What are the long-term safety findings for upadacitinib in atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], translating 6-year trial safety data of upadacitinib in atopic dermatitis into clinical practice, it is mentioned that \"The overall incidence rate of serious adverse events (SAEs) was low and similar across treatment groups.\" This suggests that the long-term safety findings for upadacitinib in atopic dermatitis are favorable, with a low incidence rate of SAEs.\n\nAdditionally, [Doc 5] reports on the long-term benefits of upadacitinib for Atopic Dermatitis: deep responses in patient-reported outcomes over 140 weeks from the Measure Up 1 and Measure Up 2 clinical trials. Although this study focuses on patient-reported outcomes rather than safety findings specifically, it does suggest that upadacitinib has a positive impact on patients' quality of life and mental health over an extended period.\n\nHowever, I must note that there is no specific information provided in the given context regarding the long-term safety findings for upadacitinib in atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 3,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 3,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "How do biologics compare with JAK inhibitors for atopic dermatitis?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "A) Biologics are more effective than JAK inhibitors in treating moderate-to-severe atopic dermatitis. B) JAK inhibitors are more effective than biologics in treating moderate-to-severe atopic dermatitis. C) Biologics and JAK inhibitors have similar efficacy in treating moderate-to-severe atopic dermatitis. D) The answer cannot be determined based on the information provided.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"corrección_clínica\": 2,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": null,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "How do biologics compare with JAK inhibitors for atopic dermatitis?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "Based on the provided context, it can be inferred that biologics, such as tralokinumab and lebrikizumab, target interleukin-13, whereas JAK inhibitors, like oral JAKis (abrocitinib, baricitinib, and upadacitinib), work by inhibiting the Janus kinase pathway. [Doc 2] provides a comparison chart between IL antagonists (biologics) and oral JAK inhibitors for moderate to severe atopic dermatitis.\n\nIn terms of efficacy, [Doc 1] suggests that tralokinumab shows efficacy in atopic dermatitis patients with prior biologic and JAK inhibitor therapy. However, it does not directly compare the two classes of medications.\n\n[Doc 4] mentions that biologics like dupilumab, tralokinumab, lebrikizumab, and nemolizumab have been approved for adolescents and adults with atopic dermatitis, while oral JAK inhibitors are also used to treat moderate-to-severe atopic dermatitis.\n\n[Doc 5] provides a practical guide on the use of systemic JAK inhibitors for atopic dermatitis, highlighting their rapid effectiveness but also emphasizing the need for careful patient selection and monitoring due to potential side effects.\n\nIn summary, while there is no direct head-to-head comparison in the provided context, biologics (IL antagonists) and JAK inhibitors seem to have different mechanisms of action and may be used in different patient populations.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 3,\n  \"alucinacion\": 5,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 4,
+      "manejo_jerga": 3,
+      "alucinacion": 5,
+      "tono": 4
+    }
+  },
+  {
+    "pregunta": "What ocular adverse events are associated with dupilumab?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The answer is conjunctivitis and worsening ocular symptoms.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 5,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 5,
+      "manejo_jerga": 5,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What ocular adverse events are associated with dupilumab?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], dupilumab was associated with more frequent conjunctivitis and worsening ocular symptoms. Additionally, [Doc 3] mentions that the majority of dupilumab-induced conjunctivitis is de novo (frequency 18%). Furthermore, [Doc 5] reports two cases of refractory AD in which dupilumab therapy was limited by conjunctivitis.\n\nSo, the ocular adverse events associated with dupilumab are:\n\n* Conjunctivitis\n* Worsening ocular symptoms",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 5,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 5,
+      "correccion_clinica": 5,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What is the efficacy of tralokinumab monotherapy versus placebo?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The answer is that the efficacy of tralokinumab monotherapy has not been established compared to placebo.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 2,\n  \"corrección_clínica\": 1,\n  \"manejo_jerga\": 3,\n  \"alucinación\": 4,\n  \"tono\": 2\n}",
+    "notas": {
+      "fidelidad_cita": 2,
+      "correccion_clinica": null,
+      "manejo_jerga": 3,
+      "alucinacion": null,
+      "tono": 2
+    }
+  },
+  {
+    "pregunta": "What is the efficacy of tralokinumab monotherapy versus placebo?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to [Doc 1], [Doc 2], and [Doc 3], the primary objective of these trials is to evaluate the efficacy of tralokinumab compared with placebo in treating moderate to severe atopic dermatitis (AD). This suggests that the efficacy of tralokinumab monotherapy versus placebo is being investigated.\n\nSource: [Doc 1], [Doc 2], and [Doc 3]",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 5,\n  \"correccion_clinica\": 5,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 5,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 5,
+      "correccion_clinica": 5,
+      "manejo_jerga": 4,
+      "alucinacion": 5,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What patient-reported outcomes improve with treatment in atopic dermatitis trials?",
+    "modelo": "biomedico",
+    "modelo_id": "koesn/llama3-openbiollm-8b:q4_K_M",
+    "respuesta": "The answer is that treatment with upadacitinib improves patient-reported outcomes such as itch, sleep quality, anxiety, depression, and overall quality of life in patients with moderate-to-severe atopic dermatitis.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 3,\n  \"correccion_clinica\": 4,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 5\n}",
+    "notas": {
+      "fidelidad_cita": 3,
+      "correccion_clinica": 4,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 5
+    }
+  },
+  {
+    "pregunta": "What patient-reported outcomes improve with treatment in atopic dermatitis trials?",
+    "modelo": "generalista",
+    "modelo_id": "llama3:8b",
+    "respuesta": "According to the context, patient-reported outcomes that improve with treatment in atopic dermatitis trials include:\n\n* Quality-of-life (QoL) [Doc 1]\n* Sleep\n* Mental health (especially anxiety and depression) [Doc 1]\n\nThese outcomes are mentioned as being impacted by atopic dermatitis and improved through treatment.",
+    "juez_crudo": "{\n  \"fidelidad_cita\": 4,\n  \"correccion_clinica\": 3,\n  \"manejo_jerga\": 4,\n  \"alucinacion\": 2,\n  \"tono\": 4\n}",
+    "notas": {
+      "fidelidad_cita": 4,
+      "correccion_clinica": 3,
+      "manejo_jerga": 4,
+      "alucinacion": 2,
+      "tono": 4
+    }
+  }
+]
