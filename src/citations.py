@@ -107,6 +107,50 @@ def redistribute_citations(answer, sources):
     return " ".join(salida)
 
 
+# --------------------------------------------------------------------------
+# Validación determinista de citas  (garantía "cita siempre válida")
+# --------------------------------------------------------------------------
+# El reparto de arriba coloca citas [Doc N] correctas, pero hay un camino en el
+# que la respuesta ORIGINAL del modelo se devuelve intacta (cuando ninguna frase
+# casa con claridad): ahí el 8B puede haber inventado un [Doc 7] cuando solo hay
+# 5 fuentes. Estas dos funciones son la última red de seguridad, aplicadas SIEMPRE
+# sobre el texto final: garantizan que ninguna cita apunte a una fuente inexistente.
+
+def cited_docs(text, n_sources):
+    """Devuelve el conjunto de números [Doc N] citados en 'text' que son VÁLIDOS
+    (1 <= N <= n_sources). Sirve para saber qué fuentes se citaron de verdad
+    (p. ej. para avisar si alguna es de acceso restringido)."""
+    if not text or n_sources <= 0:
+        return set()
+    return {n for n in (int(m) for m in _DOC_TAG_RE.findall(text))
+            if 1 <= n <= n_sources}
+
+
+def strip_invalid_citations(text, n_sources):
+    """Elimina del texto cualquier cita [Doc N] fuera de rango (N<1 o N>n_sources).
+
+    Es determinista y conservador: solo toca las citas inválidas (las que apuntan
+    a una fuente que NO existe), dejando intactas las válidas y el resto del texto.
+    Con esto, la promesa de MIA —'cada cita es rastreable a una fuente real'— se
+    cumple SIEMPRE, pase lo que pase con la generación del modelo.
+    """
+    if not text:
+        return text
+
+    def _sustituir(m):
+        try:
+            n = int(m.group(1))
+        except (TypeError, ValueError):
+            return ""  # cita ilegible → fuera
+        return m.group(0) if 1 <= n <= n_sources else ""
+
+    limpio = _DOC_TAG_RE.sub(_sustituir, text)
+    # El borrado puede dejar dobles espacios o un espacio antes de un punto.
+    limpio = re.sub(r"[ \t]{2,}", " ", limpio)
+    limpio = re.sub(r"\s+([.,;:])", r"\1", limpio)
+    return limpio.strip()
+
+
 if __name__ == "__main__":
     import sys
     try:

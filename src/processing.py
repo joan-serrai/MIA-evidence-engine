@@ -82,6 +82,10 @@ def _parse_clinical_trials(path, drug):
             "drugs": [drug],
             "disease": config.DISEASE,
             "url": f"https://clinicaltrials.gov/study/{nct}",
+            # Los registros de ClinicalTrials.gov son públicos por diseño (el
+            # protocolo/resumen es abierto), así que nunca hay "muro de pago".
+            "doi": "",
+            "access": "open",
         })
     return docs
 
@@ -127,6 +131,21 @@ def _parse_pubmed(path, drug):
                     nombre_completo += f" {nombre.text}"
                 autores.append(nombre_completo.strip())
 
+        # ACCESO ("paper de pago"): PubMed nos da SIEMPRE el abstract gratis, pero
+        # el TEXTO COMPLETO puede estar tras un muro de pago. La señal fiable y
+        # gratuita: si el artículo tiene un id de PubMed Central (PMC), su texto
+        # completo es de acceso abierto; si solo tiene DOI (editorial) y no PMC,
+        # lo tratamos como "solo resumen" → MIA avisará de que hay más detrás.
+        # (No hacemos scraping del PDF de pago: sería ilegal; solo lo señalamos.)
+        pmc = doi = ""
+        for aid in article.findall(".//PubmedData/ArticleIdList/ArticleId"):
+            tipo = (aid.get("IdType") or "").lower()
+            if tipo == "pmc" and aid.text:
+                pmc = aid.text.strip()
+            elif tipo == "doi" and aid.text:
+                doi = aid.text.strip()
+        access = "open" if pmc else "abstract_only"
+
         texto = _normalize_text(f"{titulo}. {abstract}")
         # Si no hay abstract, el título solo suele ser demasiado pobre; lo
         # conservamos igualmente (mejor poco que nada para la demo).
@@ -139,6 +158,8 @@ def _parse_pubmed(path, drug):
             "drugs": [drug],
             "disease": config.DISEASE,
             "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
+            "doi": doi,
+            "access": access,
         })
     return docs
 
@@ -259,6 +280,12 @@ def clean_and_chunk(raw_documents=None, save_silver=True):
                     "drugs": "; ".join(doc["drugs"]),      # lista → string
                     "disease": doc["disease"],
                     "url": doc["url"],
+                    # Acceso al texto completo: "open" (PMC / ensayo público) o
+                    # "abstract_only" (solo resumen; el texto completo puede estar
+                    # de pago). ChromaDB exige metadatos ESCALARES → guardamos
+                    # strings, con defaults por si un doc viejo no los trae.
+                    "doi": doc.get("doi", ""),
+                    "access": doc.get("access", "open"),
                     "chunk_index": i,
                 },
             })

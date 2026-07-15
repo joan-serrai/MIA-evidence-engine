@@ -80,6 +80,13 @@ _ANSWER_SYSTEM = (
     "key finding first, then the supporting evidence — comparing efficacy, "
     "safety or populations across documents when the CONTEXT allows — and close "
     "with the practical implication or next step that the evidence justifies. "
+    "When you report a result, give the specific figure — the named endpoint "
+    "(e.g. EASI-75, IGA 0/1, itch NRS), its value, the timepoint and the "
+    "population — whenever the CONTEXT provides it, instead of vague words like "
+    "'effective'. Compare two drugs directly only if the CONTEXT contains a "
+    "head-to-head study; if the figures come from separate studies, say the "
+    "comparison is indirect and should be read with caution. Keep a neutral, "
+    "professional, non-promotional tone. "
     "Cite the supporting document INLINE right after each sentence, e.g. [Doc 1] "
     "— one citation per sentence, not grouped at the end. Use the REAL numbers, "
     "never the literal text 'Doc N'. Do NOT copy the CONTEXT verbatim and never "
@@ -90,6 +97,65 @@ _ANSWER_SYSTEM = (
     "exactly what is missing. Write directly for a clinician; do NOT open with or "
     "refer to 'the CONTEXT' or 'the provided documents' — just give the answer."
 )
+
+
+# --------------------------------------------------------------------------
+# Detección de INTENCIÓN de la pregunta  (personalización dinámica)
+# --------------------------------------------------------------------------
+# Adaptamos el ÉNFASIS de la respuesta a lo que la pregunta pide (eficacia,
+# seguridad, comparativa, mecanismo). Lo hacemos con un router LIGERO por
+# palabras clave, NO con el LLM: es instantáneo, gratis, auditable (ves por qué
+# clasificó) y evita una llamada extra a un modelo local que además clasifica
+# mal. Es la mitad "dinámica" del perfil de usuario; el "rol" fijo (MSL, Market
+# Access…) queda para más adelante, y se añadiría igual: como otro modificador.
+#
+# PRINCIPIO CLAVE: el modificador solo REORDENA el foco. NO relaja ninguna regla
+# de seguridad del núcleo (_ANSWER_SYSTEM): citar siempre, no salir del CONTEXT,
+# no alucinar. Personalizamos la presentación, nunca la integridad.
+_INTENT_PATTERNS = [
+    ("safety", re.compile(
+        r"\b(safe(?:ty)?|adverse|side[-\s]?effect|tolerab|toxic|risk|warning|"
+        r"discontinu|boxed[-\s]?warning|black[-\s]?box)\w*", re.IGNORECASE)),
+    ("comparative", re.compile(
+        r"\b(compare|comparison|versus|vs\.?|better\s+than|superior|"
+        r"head[-\s]?to[-\s]?head|difference\s+between|relative\s+to)\b", re.IGNORECASE)),
+    ("mechanism", re.compile(
+        r"\b(mechanism|mode\s+of\s+action|moa|pathway|receptor|"
+        r"how\s+does\s+\w+\s+work)\b", re.IGNORECASE)),
+]
+
+# Modificador que se AÑADE al system prompt según la intención detectada.
+_INTENT_MODIFIERS = {
+    "efficacy": (
+        "FOCUS: Lead with the efficacy outcome — the named endpoint (e.g. EASI-75, "
+        "IGA 0/1, itch NRS), its value, timepoint and population as given in the CONTEXT."),
+    "safety": (
+        "FOCUS: Lead with adverse events — their type, frequency, severity and "
+        "discontinuation rate — and surface any serious or class-level safety signal "
+        "present in the CONTEXT."),
+    "comparative": (
+        "FOCUS: Emphasize the comparison asked for. State a difference only if the "
+        "CONTEXT supports it; if it spans separate studies, call it an indirect "
+        "comparison and advise caution."),
+    "mechanism": (
+        "FOCUS: Explain the mechanism of action and the drug target clearly, defining "
+        "the biomedical terms you use."),
+}
+
+
+def detect_intent(question):
+    """Clasifica la pregunta en una intención para ENFOCAR la respuesta.
+
+    Devuelve 'safety' | 'comparative' | 'mechanism' | 'efficacy' (por defecto).
+    Precedencia por orden de _INTENT_PATTERNS: seguridad y comparativa (señales
+    de alto valor) se comprueban antes que mecanismo; si nada casa, asumimos que
+    la pregunta es de eficacia (el caso más común en el corpus de MIA).
+    """
+    q = question or ""
+    for etiqueta, patron in _INTENT_PATTERNS:
+        if patron.search(q):
+            return etiqueta
+    return "efficacy"
 
 
 def _build_user_prompt(contexto, question):
@@ -146,7 +212,18 @@ def _looks_degenerate(text):
     return False
 
 
-def _generate_answer(contexto, question, retries=3):
+def _build_system_prompt(intent):
+    """Núcleo invariante (_ANSWER_SYSTEM) + modificador de énfasis de la intención.
+
+    El núcleo lleva las reglas de seguridad (citar, no alucinar, no salir del
+    CONTEXT) y es IGUAL para todos; el modificador solo reordena el foco. Así la
+    personalización nunca puede debilitar la integridad de la respuesta.
+    """
+    modificador = _INTENT_MODIFIERS.get(intent, "")
+    return f"{_ANSWER_SYSTEM}\n\n{modificador}" if modificador else _ANSWER_SYSTEM
+
+
+def _generate_answer(contexto, question, retries=3, intent=None):
     """Genera la respuesta con reintentos y temperatura ESCALONADA.
 
     1er intento determinista (temp 0.0) → salida FIEL y REPRODUCIBLE. Ya no nos
@@ -154,7 +231,12 @@ def _generate_answer(contexto, question, retries=3):
     [Doc N]); las citas las pone luego el post-proceso determinista. Si degenera
     (eco/examen/parroteo), reintenta con temperatura al alza para escapar del bucle.
     Devuelve el texto o None si todo falla.
+
+    'intent' enfoca la respuesta (ver detect_intent). Si no se pasa, se detecta
+    aquí a partir de la pregunta.
     """
+    intent = intent or detect_intent(question)
+    system_prompt = _build_system_prompt(intent)
     temps = [0.0, 0.3, 0.5, 0.7]
     user_prompt = _build_user_prompt(contexto, question)
     for intento in range(retries + 1):
@@ -162,7 +244,7 @@ def _generate_answer(contexto, question, retries=3):
         resp = ollama.chat(
             model=config.LLM_MODEL,
             messages=[
-                {"role": "system", "content": _ANSWER_SYSTEM},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             options={"temperature": temp, "num_ctx": 8192},
@@ -392,6 +474,11 @@ def _build_context(fragmentos):
             "title": meta.get("title"),
             "url": meta.get("url"),
             "drugs": meta.get("drugs"),
+            # Acceso al texto completo: "open" o "abstract_only" (paper de pago).
+            # Default "open" si el índice es viejo y no trae el campo → evita
+            # avisos falsos hasta que se reprocese el corpus (processing.run()).
+            "access": meta.get("access") or "open",
+            "doi": meta.get("doi") or "",
             "similarity": round(doc["similarity"], 3),
             "n_fragments": n_frag,  # cuántos chunks de este artículo coincidieron
             # Texto real del MEJOR chunk de este doc (chunks[0] = mejor similitud,
@@ -410,19 +497,48 @@ def _build_context(fragmentos):
 # 3) Pipeline completo (answer)
 # --------------------------------------------------------------------------
 
+def _append_access_notice(answer_text, fuentes):
+    """Añade un aviso al final si alguna fuente CITADA es de acceso restringido.
+
+    Transparencia "paper de pago": cuando la respuesta se apoya en un artículo del
+    que MIA solo tiene el RESUMEN (texto completo posiblemente de pago), lo decimos
+    explícitamente. Solo avisamos de las fuentes realmente CITADAS (evita ruido);
+    el resto de fuentes restringidas quedan marcadas en el panel vía su campo
+    'access'. No accedemos al PDF de pago: solo señalamos que existe.
+    """
+    citadas = citations.cited_docs(answer_text, len(fuentes))
+    restringidas = [f for f in fuentes
+                    if f["n"] in citadas and f.get("access") == "abstract_only"]
+    if not restringidas:
+        return answer_text
+    refs = ", ".join(f"[Doc {f['n']}]" for f in restringidas)
+    verbo = "es" if len(restringidas) == 1 else "son"
+    aviso = (
+        f"\n\n⚠ Nota de acceso: {refs} {verbo} de acceso restringido — MIA solo "
+        "dispone del RESUMEN; el texto completo podría estar de pago y contener "
+        "datos adicionales (cifras, métodos). Conviene consultar la fuente "
+        "original para el detalle completo."
+    )
+    return answer_text + aviso
+
+
 def answer(question, top_k=None):
     """Pipeline RAG completo: recuperar → construir prompt → preguntar al LLM local.
 
     Devuelve un dict:
       {
-        "answer":  texto de la respuesta del modelo,
+        "answer":  texto de la respuesta del modelo (citas válidas garantizadas),
         "sources": lista de fuentes citadas (para mostrarlas en la UI),
         "has_evidence": bool — si la mejor coincidencia supera el umbral,
+        "intent": intención detectada de la pregunta (enfoque de la respuesta),
       }
 
     Nota: el OLLAMA_HOST del .env se aplica automáticamente al cargar dotenv.
     """
     load_dotenv()  # respeta OLLAMA_HOST si está definido en .env
+
+    # Intención de la pregunta → enfoca la respuesta (personalización dinámica).
+    intent = detect_intent(question)
 
     fragmentos = retrieve(question, top_k)
 
@@ -442,11 +558,12 @@ def answer(question, top_k=None):
                        "buscarla en PubMed/ClinicalTrials.)"),
             "sources": fuentes,
             "has_evidence": False,
+            "intent": intent,
         }
 
-    # Generación robusta: prompt con instrucciones+few-shot en el user, guardián
+    # Generación robusta: prompt (núcleo + modificador de intención), guardián
     # anti-degeneración y reintentos (ver _generate_answer / _looks_degenerate).
-    salida = _generate_answer(contexto, question)
+    salida = _generate_answer(contexto, question, intent=intent)
     if salida is None:
         # Tras los reintentos seguía degenerando: mensaje claro, NO basura.
         salida = ("No he podido generar una respuesta fiable a partir de la "
@@ -457,10 +574,20 @@ def answer(question, top_k=None):
         # frase que cada una respalda (post-proceso determinista y conservador).
         salida = citations.redistribute_citations(salida, fuentes)
 
+    # RED DE SEGURIDAD DETERMINISTA: quitamos cualquier cita [Doc N] fuera de
+    # rango (una fuente inexistente que el modelo pudiera haber inventado). Se
+    # aplica SIEMPRE, pase lo que pase antes → la respuesta final nunca cita una
+    # fuente que no existe. Es la garantía de "cita válida siempre".
+    salida = citations.strip_invalid_citations(salida, len(fuentes))
+
+    # Aviso de "paper de pago" para las fuentes citadas de acceso restringido.
+    salida = _append_access_notice(salida, fuentes)
+
     return {
         "answer": salida,
         "sources": fuentes,
         "has_evidence": has_evidence,
+        "intent": intent,
     }
 
 
@@ -472,11 +599,17 @@ if __name__ == "__main__":
     pregunta = " ".join(sys.argv[1:]) or "What is the efficacy of dupilumab in atopic dermatitis?"
     print("=" * 60)
     print(f"Pregunta: {pregunta}")
+    # Intención detectada por el router → confirma qué ENFOQUE aplicó al prompt.
+    print(f"Intención detectada: {detect_intent(pregunta)}")
     print("=" * 60)
     resultado = answer(pregunta)
     print("\n--- RESPUESTA ---\n")
     print(resultado["answer"])
     print(f"\n--- FUENTES (evidencia local: {'sí' if resultado['has_evidence'] else 'débil'}) ---")
     for f in resultado["sources"]:
+        # Acceso al texto completo: "abierto" o "SOLO-RESUMEN" (posible pago).
+        # Usamos texto (no emojis) para que la consola de Windows no lo rompa.
+        acc = f.get("access") or "open"
+        etiqueta_acc = "SOLO-RESUMEN (posible pago)" if acc == "abstract_only" else "abierto"
         print(f"  [Doc {f['n']}] {f['source']}:{f['doc_id']}  (sim {f['similarity']}, "
-              f"{f['n_fragments']} frag)  {f['url']}")
+              f"{f['n_fragments']} frag, acceso: {etiqueta_acc})  {f['url']}")
