@@ -130,26 +130,43 @@ def _openai_embed(textos):
 # Interfaz pública (lo único que usan processing.py y rag.py)
 # --------------------------------------------------------------------------
 
-def embed_documents(textos):
-    """Vectoriza DOCUMENTOS (chunks) para indexarlos. Devuelve lista de vectores."""
+def embed_documents(textos, backend=None):
+    """Vectoriza DOCUMENTOS (chunks) para indexarlos. Devuelve lista de vectores.
+
+    `backend` (opcional) permite forzar un backend concreto SIN tocar el estado
+    global `config.EMBEDDING_BACKEND`. Si no se pasa, usa el de config (el de
+    producto). Ver la nota en `embed_query` sobre por qué esto importa.
+    """
     if not textos:
         return []
-    if config.EMBEDDING_BACKEND == "medcpt":
+    backend = backend or config.EMBEDDING_BACKEND
+    if backend == "medcpt":
         # SIN normalizar: MedCPT usa producto escalar (ver nota de cabecera).
         return _medcpt_encode(textos, "article", config.MEDCPT_ARTICLE_MAXLEN)
-    if config.EMBEDDING_BACKEND == "openai":
+    if backend == "openai":
         # text-embedding-3 devuelve vectores ya normalizados (coseno).
         return _openai_embed(textos)
     # sentence-transformers ya normaliza internamente (coseno).
     return _st().encode(textos, normalize_embeddings=True, show_progress_bar=True).tolist()
 
 
-def embed_query(texto):
-    """Vectoriza UNA pregunta para recuperar. Devuelve un solo vector."""
-    if config.EMBEDDING_BACKEND == "medcpt":
+def embed_query(texto, backend=None):
+    """Vectoriza UNA pregunta para recuperar. Devuelve un solo vector.
+
+    `backend` (opcional) elige el modelo SIN mutar `config.EMBEDDING_BACKEND`.
+    ¿Por qué existe este parámetro? Porque la página de comparación necesita
+    embeber la MISMA pregunta con dos backends distintos (MedCPT y OpenAI). Si
+    para ello mutáramos el config global, en Streamlit —donde TODAS las páginas
+    comparten el mismo proceso de Python— esa mutación "contaminaría" la página
+    de chat: la siguiente pregunta se embebería con el backend equivocado (p. ej.
+    OpenAI, 1536 dim) contra la colección de MedCPT (768 dim) → crash de Chroma.
+    Pasando el backend explícito, cada llamada es autónoma y sin efectos globales.
+    """
+    backend = backend or config.EMBEDDING_BACKEND
+    if backend == "medcpt":
         # SIN normalizar (producto escalar): usa la TORRE de preguntas.
         return _medcpt_encode([texto], "query", config.MEDCPT_QUERY_MAXLEN)[0]
-    if config.EMBEDDING_BACKEND == "openai":
+    if backend == "openai":
         return _openai_embed([texto])[0]
     return _st().encode([texto], normalize_embeddings=True).tolist()[0]
 

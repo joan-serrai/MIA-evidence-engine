@@ -1,6 +1,11 @@
 """
 fix_source_titles.py — Reparación puntual de títulos de fuentes.  [Mantenimiento]
 
+¿CUÁL DE LOS DOS SCRIPTS DE TÍTULOS USAR? Este es el reparador GENERAL: no necesita
+el .txt original (lee el texto ya guardado en ChromaDB y, como último recurso, pide
+el título a PubMed por red). Si aún conservas el .txt del export, es más rápido
+`retitle_desktop_set.py` (100% offline).
+
 PROBLEMA (histórico): parte del corpus (el "set de escritorio" que se ingirió en
 formato TEXTO de PubMed) guardó como `title` la LÍNEA DE CITA en vez del título
 real. Ejemplo de título contaminado:

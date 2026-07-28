@@ -157,28 +157,45 @@ def run_scout(question, max_results=20):
 # 4) Orquestador: responde, y si falta evidencia, activa el Scout y reintenta
 # --------------------------------------------------------------------------
 
-def answer_with_scout(question, max_results=20):
+def answer_with_scout(question, max_results=20, history=None):
     """Pipeline completo con fallback:
 
         rag.answer  →  ¿hay evidencia?  →  sí: devolver
                                         →  no: run_scout → rag.answer otra vez
 
     Devuelve el dict de rag.answer + 'used_scout' y, si lo usó, 'scout'.
-    """
-    from . import rag  # import "en caliente" para evitar import circular
 
-    fragmentos = rag.retrieve(question)
-    if not needs_fallback(question, fragmentos):
-        res = rag.answer(question)
+    `history` (opcional): turnos previos. Se CONDENSA aquí UNA sola vez (para que
+    el disparador del Scout y la búsqueda usen ya la pregunta autónoma) y se pasa
+    la pregunta resuelta a rag.answer SIN historial (para no re-condensar).
+    """
+    # Import "en caliente" para evitar el import circular (rag NO importa scout).
+    # Patrón dual como en la cabecera: relativo si se usa como paquete, absoluto
+    # si se ejecuta el módulo directamente (`python src/scout.py`).
+    try:
+        from . import rag
+    except (ImportError, ValueError):
+        from src import rag
+
+    # Conversación dinámica: resolvemos el follow-up ANTES de decidir el fallback
+    # y de buscar fuera → el Scout busca el fármaco correcto, no un pronombre.
+    pregunta = rag.condense_question(question, history) if history else question
+    condensed = pregunta if pregunta != question else None
+
+    fragmentos = rag.retrieve(pregunta)
+    if not needs_fallback(pregunta, fragmentos):
+        res = rag.answer(pregunta)          # ya autónoma → sin history
         res["used_scout"] = False
+        res["condensed_question"] = condensed
         return res
 
     print("→ Evidencia local insuficiente; activando el agente Scout...")
-    resumen = run_scout(question, max_results)
+    resumen = run_scout(pregunta, max_results)
 
-    res = rag.answer(question)  # reintento con la base ya ampliada
+    res = rag.answer(pregunta)              # reintento con la base ya ampliada
     res["used_scout"] = True
     res["scout"] = resumen
+    res["condensed_question"] = condensed
     return res
 
 

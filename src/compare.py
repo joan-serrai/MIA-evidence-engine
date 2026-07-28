@@ -26,11 +26,11 @@ import chromadb
 
 try:
     from .. import config
-    from . import embeddings, rag
+    from . import embeddings, rag, citations
 except (ImportError, ValueError):
     sys.path.append(str(Path(__file__).resolve().parent.parent))
     import config
-    from src import embeddings, rag
+    from src import embeddings, rag, citations
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -82,9 +82,12 @@ def retrieve_ranked(question, backend, collection_name, target_drugs=None, top_k
     if top_k is None:
         top_k = config.TOP_K
 
-    # Fijamos el backend para que embed_query use la torre/modelo correcto.
-    config.EMBEDDING_BACKEND = backend
-    query_vec = embeddings.embed_query(question)
+    # Embebemos con el backend EXPLÍCITO, sin mutar config.EMBEDDING_BACKEND.
+    # CLAVE: en Streamlit todas las páginas comparten el MISMO proceso, así que
+    # mutar el config global aquí "contaminaba" la página de chat (la pregunta se
+    # embebía luego con OpenAI, 1536 dim, contra la colección MedCPT de 768 dim →
+    # crash de Chroma). Con el parámetro explícito, esta página no deja rastro.
+    query_vec = embeddings.embed_query(question, backend=backend)
 
     col = _collection(collection_name)
     res = col.query(
@@ -133,6 +136,84 @@ def retrieve_ranked(question, backend, collection_name, target_drugs=None, top_k
     n_on = sum(1 for d in docs if d["on_target"]) if targets else None
     hit1 = docs[0]["on_target"] if (targets and docs) else None
     return {"docs": docs, "n_on_target": n_on, "hit1": hit1, "total": len(docs)}
+
+
+# --------------------------------------------------------------------------
+# Respuesta REDACTADA por backend (para ver el efecto del embedding en el output)
+# --------------------------------------------------------------------------
+
+def answer_from_backend(question, backend, collection_name, top_k=None):
+    """Genera una respuesta REDACTADA usando SOLO la evidencia que recupera `backend`.
+
+    ¿Por qué es una comparación justa (y qué compara)? El LLM redactor es el MISMO
+    (`rag._generate_answer`, OpenBioLLM local) para las dos columnas. Lo ÚNICO que
+    cambia es qué evidencia le llega, porque cada embedding recupera y ordena
+    distinto. Así, cualquier diferencia entre las dos respuestas es atribuible al
+    EMBEDDING — que es justo la tesis del capstone. (Es la extensión natural de
+    `retrieve_ranked`: aquel enseña QUÉ recupera cada uno; este, en qué se traduce
+    esa recuperación cuando el mismo modelo redacta a partir de ella.)
+
+    Reutiliza el ensamblado de contexto y el post-proceso de citas de `rag`, pero
+    con un contexto MÍNIMO (sin el gráfico de outcomes, que no aplica aquí) para no
+    acoplar este módulo a la colección de producto. Devuelve {answer, sources}.
+    """
+    if top_k is None:
+        top_k = config.TOP_K
+
+    # 1) Recuperar con el backend EXPLÍCITO contra SU colección (sin tocar config).
+    query_vec = embeddings.embed_query(question, backend=backend)
+    col = _collection(collection_name)
+    res = col.query(
+        query_embeddings=[query_vec],
+        n_results=top_k * 4,
+        include=["documents", "metadatas", "distances"],
+    )
+    fragmentos = [
+        {"text": t, "metadata": m, "similarity": 1.0 - d}
+        for t, m, d in zip(res["documents"][0], res["metadatas"][0], res["distances"][0])
+    ]
+
+    # 2) Colapsar a UN registro por documento (reutilizamos la lógica de rag) y
+    #    armar un contexto [Doc N] + lista de fuentes (mínima, para la UI).
+    documentos = rag._group_by_document(fragmentos, top_k)
+    lineas, fuentes = [], []
+    presupuesto = config.MAX_CONTEXT_CHARS
+    for i, doc in enumerate(documentos, start=1):
+        meta = doc["metadata"]
+        trozos = [t for _, t in sorted(doc["chunks"], key=lambda c: c[0])]
+        texto_doc = " ".join(trozos)
+        if len(texto_doc) > presupuesto:
+            texto_doc = texto_doc[:max(0, presupuesto)].rstrip() + " […]"
+        presupuesto -= len(texto_doc)
+        lineas.append(f"[Doc {i}]\n{texto_doc}")
+        fuentes.append({
+            "n": i,
+            "source": meta.get("source"),
+            "doc_id": meta.get("doc_id"),
+            "title": meta.get("title"),
+            "url": meta.get("url"),
+            "drugs": meta.get("drugs"),                 # el repartidor de citas los usa
+            "snippet": rag._excerpt(doc["chunks"][0][1]),  # (título+snippet+fármacos)
+            "similarity": round(doc["similarity"], 3),
+        })
+        if presupuesto <= 0:
+            break
+
+    if not fuentes:
+        return {"answer": "No se recuperó evidencia para redactar una respuesta.",
+                "sources": []}
+
+    # 3) Redactar con el LLM común + post-proceso determinista de citas (idéntico
+    #    a rag.answer: reparto de [Doc N] y borrado de citas fuera de rango).
+    contexto = "\n\n".join(lineas)
+    salida = rag._generate_answer(contexto, question)
+    if salida is None:
+        salida = ("No se pudo generar una respuesta fiable a partir de esta "
+                  "evidencia (el modelo degeneró tras varios reintentos).")
+    else:
+        salida = citations.redistribute_citations(salida, fuentes)
+    salida = citations.strip_invalid_citations(salida, len(fuentes))
+    return {"answer": salida, "sources": fuentes}
 
 
 # --------------------------------------------------------------------------

@@ -619,6 +619,13 @@ def _render_assistant(data):
     texto = data.get("answer") or data.get("content") or ""
     has_evidence = data.get("has_evidence")
 
+    # Conversación dinámica: si la pregunta era un follow-up y se resolvió a una
+    # pregunta autónoma, lo decimos (transparencia: el usuario ve CÓMO se interpretó).
+    condensed = data.get("condensed_question")
+    if condensed:
+        st.caption(f":material/subdirectory_arrow_right: Interpreté tu pregunta como: "
+                   f"*{condensed}*")
+
     if has_evidence is False:
         # Estado sin evidencia: el texto ya es el mensaje explicativo → panel.
         _render_no_evidence_panel(texto)
@@ -650,6 +657,11 @@ pending = st.session_state.pop("pending_q", None)
 pregunta = st.chat_input("Ask a question about the evidence (in English)…") or pending
 
 if pregunta:
+    # Conversación dinámica: el historial son los turnos ANTERIORES a esta
+    # pregunta (todo lo que ya hay en messages). Se lo pasamos al pipeline para
+    # que resuelva follow-ups ("and its safety?") a una pregunta autónoma.
+    historial = list(st.session_state.messages)
+
     # 1) Mostramos y guardamos la pregunta del usuario.
     st.session_state.messages.append({"role": "user", "content": pregunta})
     with st.chat_message("user"):
@@ -659,9 +671,9 @@ if pregunta:
     with st.chat_message("assistant"):
         with st.spinner("Buscando evidencia y razonando con el modelo local…"):
             if usar_scout:
-                resultado = scout.answer_with_scout(pregunta)
+                resultado = scout.answer_with_scout(pregunta, history=historial)
             else:
-                resultado = rag.answer(pregunta)
+                resultado = rag.answer(pregunta, history=historial)
                 resultado["used_scout"] = False
 
         # Mismo renderizador que el historial (respuesta + Data Cards + paneles).
@@ -676,4 +688,5 @@ if pregunta:
         "has_evidence": resultado.get("has_evidence"),
         "used_scout": resultado.get("used_scout"),
         "scout": resultado.get("scout"),
+        "condensed_question": resultado.get("condensed_question"),
     })

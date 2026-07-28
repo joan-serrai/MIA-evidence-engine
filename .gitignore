@@ -5,6 +5,14 @@ venv/
 # Cachés de Python
 __pycache__/
 *.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# Artefactos de empaquetado (por si algún día se packagiza)
+build/
+dist/
+*.egg-info/
 
 # Variables de entorno (secretos: NO subir)
 .env

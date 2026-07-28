@@ -115,6 +115,22 @@ st.markdown(
       .rk-link { font-size:.78rem; font-weight:600; color:var(--mia-teal-d); text-decoration:none; }
       .rk-link:hover { text-decoration:underline; }
 
+      /* Bloque de respuesta redactada (cuando el toggle está activo). */
+      .rk-answer { border:1px solid var(--mia-line); border-radius:12px;
+                   padding:12px 15px; margin:2px 0 14px; background:#fff;
+                   box-shadow:0 1px 2px rgba(15,23,42,.04); }
+      .rk-answer.mia { border-left:4px solid var(--mia-teal); }
+      .rk-answer.cen { border-left:4px solid var(--cen-slate); }
+      .rk-answer .a-head { font-family:var(--mia-mono); font-size:.66rem; font-weight:700;
+                           letter-spacing:.07em; text-transform:uppercase;
+                           color:var(--mia-slate); margin-bottom:7px; }
+      .rk-answer .a-body { font-size:.9rem; line-height:1.55; color:var(--mia-ink); }
+      .rk-answer .a-body p { margin:0 0 8px; }
+      /* Insignia de cita [Doc N] dentro de la respuesta redactada. */
+      .cmp-cite { display:inline-block; background:var(--mia-mint); color:var(--mia-teal-d);
+                  border:1px solid #cde8d8; font-size:.72rem; font-weight:700;
+                  padding:1px 6px; border-radius:6px; margin:0 1px; white-space:nowrap; }
+
       .cmp-note { font-size:.8rem; color:var(--mia-slate); background:var(--mia-bg-soft,#fafafa);
                   border:1px solid var(--mia-line); border-radius:10px; padding:10px 14px; margin:6px 0 2px; }
     </style>
@@ -158,6 +174,18 @@ if pregunta_libre:
 pregunta = st.session_state.get("cmp_q")
 target_drugs = st.session_state.get("cmp_drugs", [])
 
+# Redacción opcional: además del ranking, generar la RESPUESTA que cada modelo
+# produciría con su evidencia. Va detrás de un toggle (OFF por defecto) porque
+# son DOS llamadas al LLM local (OpenBioLLM 8B) y tardan bastante; el ranking
+# solo es instantáneo. Así el usuario elige cuándo pagar esa espera.
+redactar = st.toggle(
+    "Redactar también la respuesta de cada modelo (usa el LLM local · más lento)",
+    value=False,
+    help="Genera la respuesta que cada modelo daría a partir de SU evidencia "
+         "recuperada. El redactor es el mismo para ambos → la diferencia viene "
+         "solo del embedding. Son 2 llamadas al modelo local, tarda unos segundos.",
+)
+
 
 def _resumen_chips(res):
     """Chips de resumen (hit@1 y on-target) para la cabecera de columna."""
@@ -172,13 +200,35 @@ def _resumen_chips(res):
             f'</div>')
 
 
-def _render_columna(etiqueta, sub, css, res):
-    """Pinta la cabecera de marca + las tarjetas de documentos de un backend."""
+def _highlight_citations(texto):
+    """Convierte '[Doc N]' en insignias visuales (igual que la página de chat)."""
+    import re
+    return re.sub(r"\[Doc\s*(\d+)\]", r'<span class="cmp-cite">Doc \1</span>',
+                  html.escape(texto))
+
+
+def _render_answer_block(css, ans):
+    """Pinta la respuesta redactada de un backend (si se generó)."""
+    if not ans:
+        return
+    cuerpo = _highlight_citations(ans.get("answer") or "").replace("\n\n", "</p><p>")
+    st.markdown(
+        f'<div class="rk-answer {css}">'
+        f'<div class="a-head">Respuesta redactada · mismo LLM local</div>'
+        f'<div class="a-body"><p>{cuerpo}</p></div></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_columna(etiqueta, sub, css, res, ans=None):
+    """Pinta la cabecera de marca + (opcional) la respuesta redactada + las
+    tarjetas de documentos de un backend."""
     st.markdown(
         f'<div class="col-head {css}"><div class="h-name">{html.escape(etiqueta)}</div>'
         f'<div class="h-sub">{html.escape(sub)}</div>{_resumen_chips(res)}</div>',
         unsafe_allow_html=True,
     )
+    _render_answer_block(css, ans)
     for d in res["docs"]:
         # Marca de acierto: verde si es del fármaco correcto; gris si no; neutro
         # cuando no hay objetivo (pregunta libre → on_target None).
@@ -230,18 +280,38 @@ else:
                  "`index_openai.py`) y que `OPENAI_API_KEY` está en el `.env`.",
                  icon=":material/error:")
     else:
+        # Redacción opcional: dos llamadas al LLM local (una por backend). Solo si
+        # el toggle está activo (por eso el spinner y el coste van aquí dentro).
+        ans_izq = ans_der = None
+        if redactar:
+            try:
+                with st.spinner("Redactando la respuesta de cada modelo con el LLM "
+                                "local (esto tarda unos segundos)…"):
+                    ans_izq = compare.answer_from_backend(pregunta, IZQ[1], IZQ[2])
+                    ans_der = compare.answer_from_backend(pregunta, DER[1], DER[2])
+            except Exception as e:
+                st.warning(f"No se pudieron redactar las respuestas: {e}. Se muestra "
+                           "solo la recuperación.", icon=":material/warning:")
+
         c_izq, c_der = st.columns(2, gap="large")
         with c_izq:
-            _render_columna(IZQ[0], IZQ[3], "mia", res_izq)
+            _render_columna(IZQ[0], IZQ[3], "mia", res_izq, ans_izq)
         with c_der:
-            _render_columna(DER[0], DER[3], "cen", res_der)
+            _render_columna(DER[0], DER[3], "cen", res_der, ans_der)
 
+        nota_redaccion = (
+            "Arriba de cada columna ves la <b>respuesta que redactaría el MISMO LLM "
+            "local</b> con la evidencia de cada modelo: como el redactor es idéntico, "
+            "cualquier diferencia entre las dos respuestas viene del <b>embedding</b>. "
+            if redactar else
+            "Activa <b>«Redactar también la respuesta de cada modelo»</b> para ver, "
+            "además del ranking, la respuesta que produciría cada uno. "
+        )
         st.markdown(
-            '<div class="cmp-note">Los <b>% de afinidad no son comparables entre '
-            'columnas</b>: MedCPT usa producto escalar (~55-75) y OpenAI coseno '
-            '(0-1), escalas distintas. Lo que sí se compara de forma justa es el '
-            '<b>orden</b> (qué pone cada modelo arriba) y cuántos documentos son del '
-            'fármaco correcto. La redacción final la haría el <b>mismo</b> LLM local '
-            'en ambos casos, así que no es el factor evaluado aquí.</div>',
+            f'<div class="cmp-note">{nota_redaccion}Los <b>% de afinidad no son '
+            'comparables entre columnas</b>: MedCPT usa producto escalar (~55-75) y '
+            'OpenAI coseno (0-1), escalas distintas. Lo que sí se compara de forma '
+            'justa es el <b>orden</b> (qué pone cada modelo arriba) y cuántos '
+            'documentos son del fármaco correcto.</div>',
             unsafe_allow_html=True,
         )

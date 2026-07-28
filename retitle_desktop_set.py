@@ -1,6 +1,11 @@
 """
 retitle_desktop_set.py — Corrige los TÍTULOS ya indexados del set de escritorio.
 
+¿CUÁL DE LOS DOS SCRIPTS DE TÍTULOS USAR? Este, si aún conservas el .txt original
+del export de PubMed: es 100% OFFLINE y no re-embebe nada. Si NO tienes el .txt,
+usa `fix_source_titles.py` (recupera el título del propio texto guardado y, si
+falta, lo pide a PubMed por red).
+
 CONTEXTO: el parser antiguo de `ingest_desktop_set.py` guardaba como `title` la
 LÍNEA DE CITA de la revista ("186. Dermatol Ther (Heidelb). 2026...") en los
 artículos que llevan declaración de conflictos de interés (ver la nota en

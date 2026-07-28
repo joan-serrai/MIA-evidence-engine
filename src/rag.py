@@ -158,6 +158,104 @@ def detect_intent(question):
     return "efficacy"
 
 
+# --------------------------------------------------------------------------
+# Conversación dinámica: condensación del follow-up  (RAG conversacional)
+# --------------------------------------------------------------------------
+# PROBLEMA: hasta ahora cada pregunta era independiente. Si preguntas
+# "Is lebrikizumab effective?" y luego "and its safety?", MIA no sabía que
+# "its" = lebrikizumab → recuperaba evidencia genérica y perdía el hilo.
+#
+# SOLUCIÓN (patrón "condense question" del RAG conversacional): antes de
+# recuperar, reescribimos el follow-up como una pregunta AUTÓNOMA usando el
+# historial ("and its safety?" → "What is the safety profile of lebrikizumab in
+# atopic dermatitis?"). Con esa pregunta ya completa, el retrieval, el router de
+# intención y el Scout funcionan igual que siempre — sin tocar el núcleo.
+#
+# DECISIONES de diseño (importan por el modelo 8B, que degenera fácil):
+#   1) Router BARATO primero: solo llamamos al LLM si la pregunta PARECE un
+#      follow-up dependiente (corta, con pronombre, o empieza por "and/what about").
+#      Una pregunta ya autónoma no gasta una llamada ni arriesga degeneración.
+#   2) La condensación NUNCA rompe el pipeline: si el LLM devuelve algo vacío,
+#      larguísimo o corrupto, caemos a la pregunta original. Robustez > elegancia.
+_FOLLOWUP_PRONOUN_RE = re.compile(
+    r"\b(it|its|it's|they|them|their|that|this|those|these|he|she|him|her|the drug|"
+    r"the same|both|either)\b", re.IGNORECASE)
+_FOLLOWUP_START_RE = re.compile(
+    r"^\s*(and|but|what about|how about|also|vs\.?|versus|compared|then|so|what if|"
+    r"why|and what|ok|okay)\b", re.IGNORECASE)
+
+
+def _looks_like_followup(question):
+    """Heurística barata: ¿esta pregunta DEPENDE del contexto previo?
+
+    True si es corta, empieza por conector de seguimiento, o usa un pronombre sin
+    sujeto propio. Falso si parece autónoma (ya nombra su tema) → así no
+    malgastamos una llamada al LLM ni arriesgamos que degenere en preguntas que
+    ya se entienden solas.
+    """
+    q = (question or "").strip()
+    if not q:
+        return False
+    n_palabras = len(q.split())
+    if _FOLLOWUP_START_RE.search(q):
+        return True
+    if n_palabras <= 7 and _FOLLOWUP_PRONOUN_RE.search(q):
+        return True
+    if n_palabras <= 4:            # "safety?", "and children?" → claramente dependiente
+        return True
+    return False
+
+
+def condense_question(question, history, max_turns=4):
+    """Reescribe un follow-up como pregunta autónoma usando el historial reciente.
+
+    `history`: lista de mensajes {role, content} (como la de Streamlit). Tomamos
+    los últimos `max_turns` turnos user/assistant. Devuelve la pregunta reescrita
+    o, ante cualquier duda, la ORIGINAL (nunca falla hacia un estado peor).
+    """
+    if not history or not _looks_like_followup(question):
+        return question
+
+    recientes = [m for m in history
+                 if m.get("role") in ("user", "assistant") and m.get("content")][-max_turns:]
+    if not recientes:
+        return question
+
+    # Recortamos cada turno (las respuestas del asistente son largas) para no
+    # desbordar el contexto ni confundir al modelo con paja.
+    convo = "\n".join(
+        f"{'User' if m['role'] == 'user' else 'Assistant'}: {str(m['content'])[:300]}"
+        for m in recientes
+    )
+    prompt = (
+        "You rewrite a follow-up question into a standalone question. Use the "
+        "conversation to fill in what the follow-up leaves implicit (the drug, the "
+        "disease, the topic). Keep it in English and keep the user's intent. Reply "
+        "with ONLY the rewritten question on one single line, nothing else.\n\n"
+        f"Conversation:\n{convo}\n\nFollow-up: {question}\n\nStandalone question:"
+    )
+    try:
+        r = ollama.chat(
+            model=config.LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.0, "num_ctx": 4096},
+        )
+        salida = (r["message"]["content"] or "").strip().splitlines()[0].strip()
+        salida = salida.strip('"').strip("'").strip()
+        # Validación conservadora: ni vacío, ni parrafada, ni corrupto, ni eco del
+        # prompt/contexto. Si algo huele mal, nos quedamos con la pregunta original.
+        if (salida
+                and 3 <= len(salida.split()) <= 40
+                and not _CYRILLIC_RE.search(salida)
+                and "context" not in salida.lower()
+                and "[doc" not in salida.lower()
+                and "standalone question" not in salida.lower()):
+            return salida
+    except Exception as e:
+        print(f"   [aviso] condensación de la pregunta falló: {e}")
+    return question
+
+
 def _build_user_prompt(contexto, question):
     """Solo datos en el USER (contexto + consulta). Las instrucciones van en el
     system para que el modelo no las copie como respuesta."""
@@ -522,7 +620,7 @@ def _append_access_notice(answer_text, fuentes):
     return answer_text + aviso
 
 
-def answer(question, top_k=None):
+def answer(question, top_k=None, history=None):
     """Pipeline RAG completo: recuperar → construir prompt → preguntar al LLM local.
 
     Devuelve un dict:
@@ -531,16 +629,30 @@ def answer(question, top_k=None):
         "sources": lista de fuentes citadas (para mostrarlas en la UI),
         "has_evidence": bool — si la mejor coincidencia supera el umbral,
         "intent": intención detectada de la pregunta (enfoque de la respuesta),
+        "condensed_question": la pregunta autónoma que se usó si era un follow-up
+                              (o None si la pregunta ya era autónoma) — para
+                              mostrar en la UI cómo se interpretó.
       }
+
+    `history` (opcional): turnos previos de la conversación. Si se pasa y la
+    pregunta parece un follow-up, se CONDENSA a una pregunta autónoma antes de
+    recuperar (ver condense_question). Todo el pipeline posterior (retrieval,
+    intención, generación) trabaja ya sobre esa pregunta completa.
 
     Nota: el OLLAMA_HOST del .env se aplica automáticamente al cargar dotenv.
     """
     load_dotenv()  # respeta OLLAMA_HOST si está definido en .env
 
-    # Intención de la pregunta → enfoca la respuesta (personalización dinámica).
-    intent = detect_intent(question)
+    # Conversación dinámica: si viene historial, resolvemos el follow-up a una
+    # pregunta autónoma. `pregunta` es la que usa TODO el pipeline; `question` es
+    # la original tal cual la escribió el usuario (solo para reportar la interpretación).
+    pregunta = condense_question(question, history) if history else question
+    condensed = pregunta if pregunta != question else None
 
-    fragmentos = retrieve(question, top_k)
+    # Intención de la pregunta → enfoca la respuesta (personalización dinámica).
+    intent = detect_intent(pregunta)
+
+    fragmentos = retrieve(pregunta, top_k)
 
     # ¿Tenemos evidencia local suficientemente buena?
     mejor = fragmentos[0]["similarity"] if fragmentos else 0.0
@@ -559,11 +671,12 @@ def answer(question, top_k=None):
             "sources": fuentes,
             "has_evidence": False,
             "intent": intent,
+            "condensed_question": condensed,
         }
 
     # Generación robusta: prompt (núcleo + modificador de intención), guardián
     # anti-degeneración y reintentos (ver _generate_answer / _looks_degenerate).
-    salida = _generate_answer(contexto, question, intent=intent)
+    salida = _generate_answer(contexto, pregunta, intent=intent)
     if salida is None:
         # Tras los reintentos seguía degenerando: mensaje claro, NO basura.
         salida = ("No he podido generar una respuesta fiable a partir de la "
@@ -588,6 +701,7 @@ def answer(question, top_k=None):
         "sources": fuentes,
         "has_evidence": has_evidence,
         "intent": intent,
+        "condensed_question": condensed,
     }
 
 
