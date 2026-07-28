@@ -24,7 +24,7 @@ import streamlit as st
 # importar config y el paquete src.
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config
-from src import rag, scout
+from src import rag, scout, citations
 
 st.set_page_config(
     page_title="MIA · Medical Intelligence Agent",
@@ -208,6 +208,17 @@ st.markdown(
         color: var(--mia-teal-d); background: var(--mia-mint);
         border: 1px solid #cde8d8; padding: 2px 7px; border-radius: 6px;
       }
+      /* Cabecera de grupo: referencia UNA vez el paper (Doc N + título) y debajo
+         van sus cifras SIN repetir la cita en cada fila. */
+      .oc-group {
+        display: flex; align-items: center; gap: 8px;
+        margin: 14px 0 6px; padding-top: 10px; border-top: 1px dashed var(--mia-line);
+      }
+      .oc-group:first-of-type { border-top: none; padding-top: 0; margin-top: 2px; }
+      .oc-group-title {
+        font-size: .78rem; font-weight: 600; color: var(--mia-ink);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
 
       /* --- Paneles de estado (Scout / sin evidencia) --- */
       .mia-panel {
@@ -224,6 +235,29 @@ st.markdown(
       .mia-panel-scout .p-dot { background: var(--mia-success-2); }
       .mia-panel-empty { background: #fafafa; border-color: var(--mia-line); color: var(--mia-slate); }
       .mia-panel-empty .p-dot { background: var(--mia-amber); }
+
+      /* --- Motivo de relevancia en las fuentes recuperadas-no-citadas --- */
+      .src-reason {
+        font-size: .8rem; color: var(--mia-slate); line-height: 1.45;
+        margin-top: 6px; padding: 7px 9px; border-radius: 8px;
+        background: var(--mia-bg-soft); border: 1px solid var(--mia-line);
+      }
+      .src-reason b { color: var(--mia-ink); font-weight: 600; }
+
+      /* --- Tira "cómo funciona": 3 pasos, patrón de los competidores --- */
+      .mia-how {
+        display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px;
+      }
+      .mia-how .step {
+        flex: 1 1 150px; border: 1px solid var(--mia-line); border-radius: 12px;
+        padding: 11px 13px; background: #fff;
+      }
+      .mia-how .step .s-n {
+        font-family: var(--mia-mono); font-size: .66rem; font-weight: 700;
+        color: var(--mia-teal); letter-spacing: .06em;
+      }
+      .mia-how .step .s-t { font-size: .86rem; font-weight: 600; color: var(--mia-ink); margin-top: 2px; }
+      .mia-how .step .s-d { font-size: .78rem; color: var(--mia-slate); margin-top: 3px; line-height: 1.4; }
 
       /* --- Sección de bienvenida (estado vacío) --- */
       .mia-welcome {
@@ -290,12 +324,37 @@ st.markdown(
     f"""
     <div class="mia-hero">
       <h1>{_icon("dna")}MIA — Medical Intelligence Agent</h1>
-      <div class="tag">Donde la evidencia se convierte en decisión · {html.escape(config.DISEASE)}</div>
+      <div class="tag">Evidencia biomédica <b>100% local y soberana</b> — tus datos
+        nunca salen de este ordenador · {html.escape(config.DISEASE)}</div>
       <div class="mia-badges">
-        <span>{_icon("lock")}100% local</span>
-        <span>{_icon("cite")}Cada dato citado</span>
-        <span>{_icon("shield")}Anti-alucinación</span>
+        <span>{_icon("lock")}100% local · sin nube</span>
+        <span>{_icon("cite")}Cada cifra rastreable al abstract</span>
+        <span>{_icon("shield")}Sin evidencia, no responde</span>
       </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Tira "cómo funciona": el patrón de presentación de los líderes (OpenEvidence,
+# UpToDate…) es explicar el flujo y la política de citas en portada. Aquí lo
+# adaptamos al diferenciador de MIA: recuperar local → citar de forma
+# determinista → ampliar con el Scout si falta evidencia.
+st.markdown(
+    f"""
+    <div class="mia-how">
+      <div class="step"><div class="s-n">01 · RECUPERA</div>
+        <div class="s-t">Búsqueda biomédica local</div>
+        <div class="s-d">MedCPT (embeddings de NCBI) encuentra la evidencia en tu
+          corpus, sin llamar a ninguna API externa.</div></div>
+      <div class="step"><div class="s-n">02 · CITA</div>
+        <div class="s-t">Cada afirmación, a su fuente</div>
+        <div class="s-d">El modelo local responde y las citas [Doc N] se colocan de
+          forma determinista: cada cifra es rastreable a su abstract.</div></div>
+      <div class="step"><div class="s-n">03 · AMPLÍA</div>
+        <div class="s-t">Agente Scout si falta evidencia</div>
+        <div class="s-d">Si el corpus local no basta, sale a PubMed/ClinicalTrials,
+          importa la evidencia y reintenta — nunca inventa.</div></div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -448,17 +507,89 @@ def _render_sources(sources):
             )
 
 
-def _render_data_cards(result):
+def _render_other_sources(sources):
+    """Fuentes recuperadas por afinidad que la respuesta NO citó. Se muestran en un
+    desplegable aparte y CADA UNA con su motivo (transparencia): así el usuario ve
+    por qué aparecieron sin confundirlas con las fuentes en las que MIA se apoyó."""
+    if not sources:
+        return
+    with st.expander(f"También recuperadas · no citadas ({len(sources)})",
+                     icon=":material/inventory_2:", expanded=False):
+        st.caption("MIA recuperó estas fuentes por su afinidad con la pregunta, pero "
+                   "la respuesta no se apoyó en ellas. Se listan con el motivo por "
+                   "transparencia (no cuentan como fuentes citadas).")
+        for f in sources:
+            title = html.escape(f.get("title") or "(sin título)")
+            id_lbl = html.escape(_id_label(f.get("source"), f.get("doc_id")))
+            src_lbl = html.escape(_source_type_label(f.get("source")))
+            url = html.escape(f.get("url") or "#")
+            pct = _confidence_pct(float(f.get("similarity", 0) or 0))
+            st.markdown(
+                f"""
+                <div class="src-card">
+                  <div class="src-head">
+                    <span class="src-doc">Doc {f['n']}</span>
+                    <span class="src-type">{src_lbl}</span>
+                    <span class="src-sim" style="color:var(--mia-slate)">● {pct}% afinidad</span>
+                  </div>
+                  <div class="src-title">{title}</div>
+                  <div class="src-reason">{_relevance_reason(f)}</div>
+                  <div class="src-meta">{id_lbl}</div>
+                  <a class="src-link" href="{url}" target="_blank">Ver fuente ↗</a>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def _split_cited(data):
+    """Separa las fuentes en (citadas, solo-recuperadas) según qué [Doc N] aparecen
+    DE VERDAD en el texto de la respuesta (citations.cited_docs). Así el gráfico y
+    los KPIs hablan solo de los papers en los que la respuesta se apoya, y el resto
+    (recuperados por afinidad pero no citados) se muestran aparte, con su motivo.
+
+    Si la respuesta no trae ninguna cita válida, tratamos la mejor fuente como
+    citada (para no ocultarlo todo) y el resto como recuperadas.
+    """
+    sources = data.get("sources") or []
+    texto = data.get("answer") or data.get("content") or ""
+    cited_n = citations.cited_docs(texto, len(sources))
+    if not cited_n and sources:
+        cited_n = {sources[0].get("n")}
+    citadas = [s for s in sources if s.get("n") in cited_n]
+    otras = [s for s in sources if s.get("n") not in cited_n]
+    return citadas, otras
+
+
+def _relevance_reason(f):
+    """Frase corta de POR QUÉ se recuperó una fuente que la respuesta NO citó.
+    Responde a la pregunta 'si me la das, dime por qué': qué fármaco/cifras cubre
+    y el recordatorio de que la respuesta no se apoyó en ella."""
+    partes = []
+    drugs = [d.strip() for d in (f.get("drugs") or "").split(";") if d.strip()][:3]
+    if drugs:
+        partes.append("trata <b>" + html.escape(", ".join(drugs)) + "</b>")
+    mets = sorted({str(o.get("metric", "")).split()[0]
+                   for o in (f.get("outcomes") or []) if o.get("metric")})
+    if mets:
+        partes.append("aporta cifras <b>" + html.escape(", ".join(mets[:3])) + "</b>")
+    detalle = ("; ".join(partes) + ". " if partes else "")
+    return (f"{detalle}Se recuperó por afinidad temática con la pregunta, pero la "
+            "respuesta no se apoyó en ella.")
+
+
+def _render_data_cards(result, cited):
     """Fila de KPIs (Data Cards) con datos REALES de esta respuesta.
 
     Regla de honestidad: solo métricas que MIA calcula de verdad. La confianza
     es la SIMILITUD de recuperación (no "precisión" ni "veracidad": MIA no juzga
-    la verdad de la respuesta en vivo). Si no hubo evidencia, no mostramos nada:
-    no hay KPIs que presumir.
+    la verdad de la respuesta en vivo). Los KPIs hablan de las fuentes realmente
+    CITADAS (`cited`), no de todas las recuperadas. Si no hubo evidencia, no
+    mostramos nada: no hay KPIs que presumir.
     """
-    sources = result.get("sources") or []
-    if not result.get("has_evidence") or not sources:
+    if not result.get("has_evidence") or not cited:
         return
+    sources = cited
 
     # 1) Nº de fuentes citadas.
     n_fuentes = len(sources)
@@ -500,42 +631,54 @@ def _render_data_cards(result):
 def _render_outcomes_chart(sources):
     """Gráfico de barras con las CIFRAS extraídas verbatim de las fuentes.
 
-    Cada barra es un número real hallado en el abstract citado (EASI 75, IGA 0/1…),
-    con su [Doc N] al lado → totalmente trazable. NO lo genera el LLM: es la
-    respuesta de MIA al "quiero ilustraciones con insights" sin inventar datos.
-    Si ninguna fuente trae cifras reconocibles, no se muestra nada.
+    Cada barra es un número real hallado en el abstract (EASI 75, IGA 0/1…). NO lo
+    genera el LLM: es determinista y trazable. Las cifras se AGRUPAN por paper: la
+    referencia [Doc N] + título se muestra UNA sola vez, en la cabecera del grupo,
+    y las cifras de ese mismo paper van debajo SIN repetir la cita en cada dato
+    (si son del mismo paper, no hace falta re-citarlo). `sources` debe venir ya
+    filtrada a las fuentes realmente CITADAS por la respuesta.
     """
-    puntos = [oc for f in (sources or []) for oc in (f.get("outcomes") or [])]
-    if not puntos:
+    # (fuente, sus cifras ordenadas de mayor a menor) — solo papers con cifras.
+    grupos = [
+        (f, sorted((f.get("outcomes") or []), key=lambda p: p.get("value", 0), reverse=True))
+        for f in (sources or [])
+    ]
+    grupos = [(f, ocs) for f, ocs in grupos if ocs]
+    if not grupos:
         return
 
-    # Barras más largas arriba; limitamos para no saturar la vista.
-    puntos.sort(key=lambda p: p.get("value", 0), reverse=True)
-    puntos = puntos[:10]
-    max_val = max((p.get("value", 0) for p in puntos), default=100) or 100
+    max_val = max((oc.get("value", 0) for _, ocs in grupos for oc in ocs), default=100) or 100
 
-    filas = []
-    for p in puntos:
-        val = float(p.get("value", 0) or 0)
-        wk = p.get("week")
-        etiqueta = html.escape(str(p.get("metric", "")))
-        sub = f"semana {html.escape(str(wk))}" if wk else ""
-        ancho = int(round(val / max_val * 100))
-        filas.append(
-            f'<div class="oc-row">'
-            f'<div class="oc-lbl">{etiqueta}<span class="oc-sub">{sub}</span></div>'
-            f'<div class="oc-track"><i style="width:{ancho}%"></i></div>'
-            f'<span class="oc-val">{val:g}%</span>'
-            f'<span class="oc-doc">Doc {int(p.get("doc_n", 0))}</span>'
-            f'</div>'
+    bloques = []
+    for f, ocs in grupos:
+        titulo = html.escape((f.get("title") or "(sin título)")[:80])
+        cabecera = (
+            f'<div class="oc-group">'
+            f'<span class="oc-doc">Doc {int(f.get("n", 0))}</span>'
+            f'<span class="oc-group-title">{titulo}</span></div>'
         )
+        filas = []
+        for p in ocs[:8]:  # tope por paper para no saturar la vista
+            val = float(p.get("value", 0) or 0)
+            wk = p.get("week")
+            etiqueta = html.escape(str(p.get("metric", "")))
+            sub = f"semana {html.escape(str(wk))}" if wk else ""
+            ancho = int(round(val / max_val * 100))
+            filas.append(
+                f'<div class="oc-row">'
+                f'<div class="oc-lbl">{etiqueta}<span class="oc-sub">{sub}</span></div>'
+                f'<div class="oc-track"><i style="width:{ancho}%"></i></div>'
+                f'<span class="oc-val">{val:g}%</span>'
+                f'</div>'
+            )
+        bloques.append(cabecera + "".join(filas))
 
     st.markdown(
         f'<div class="mia-chart">'
         f'<div class="oc-head">{_icon("cite")} Datos clave de la evidencia'
         f'<span class="oc-note">cifras citadas literalmente del abstract · '
         f'no generadas por el modelo</span></div>'
-        f'{"".join(filas)}'
+        f'{"".join(bloques)}'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -565,7 +708,9 @@ if not st.session_state.messages:
         <div class="mia-welcome">
           <h3>Bienvenido/a</h3>
           <p>Pregunta sobre la evidencia de la dermatitis atópica y sus fármacos.
-             Cada respuesta cita las fuentes exactas que la respaldan. Prueba con un ejemplo:</p>
+             Todo se ejecuta <b>en local</b>: cada respuesta cita las fuentes exactas
+             que la respaldan y, si no hay evidencia suficiente, MIA lo dice en vez de
+             inventar. Prueba con un ejemplo:</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -629,15 +774,24 @@ def _render_assistant(data):
     if has_evidence is False:
         # Estado sin evidencia: el texto ya es el mensaje explicativo → panel.
         _render_no_evidence_panel(texto)
-    else:
-        _render_answer(texto)
-        _render_outcomes_chart(data.get("sources"))  # gráfico de cifras verbatim
-        _render_data_cards(data)          # KPIs (con su propio guard interno)
+        if data.get("used_scout"):
+            _render_scout_panel(data.get("scout"))
+        return
+
+    # Separamos las fuentes CITADAS por la respuesta de las solo-recuperadas: el
+    # gráfico, los KPIs y las "fuentes citadas" hablan solo de las primeras; las
+    # segundas van en su propio bloque, cada una con su motivo.
+    citadas, otras = _split_cited(data)
+
+    _render_answer(texto)
+    _render_outcomes_chart(citadas)   # cifras verbatim, agrupadas por paper citado
+    _render_data_cards(data, citadas) # KPIs sobre las fuentes realmente citadas
 
     if data.get("used_scout"):
         _render_scout_panel(data.get("scout"))
 
-    _render_sources(data.get("sources"))
+    _render_sources(citadas)          # "Fuentes citadas" = solo las que cita el texto
+    _render_other_sources(otras)      # recuperadas-no-citadas, con su motivo
 
 
 # Re-pintamos todo el historial en cada recarga (así es Streamlit).
