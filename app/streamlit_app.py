@@ -13,9 +13,11 @@ El diseño (cabecera con gradiente, tarjetas, insignias) se logra con un poco de
 propio inyectado más abajo. Streamlit lee además el tema de `.streamlit/config.toml`.
 """
 
+import hashlib
 import html
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -24,7 +26,7 @@ import streamlit as st
 # importar config y el paquete src.
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config
-from src import rag, scout, citations
+from src import rag, scout, citations, report, status
 
 st.set_page_config(
     page_title="MIA · Medical Intelligence Agent",
@@ -362,6 +364,27 @@ st.markdown(
 
 
 # ==========================================================================
+# 1.b) Estado del sistema (producto): ¿está todo listo para responder?
+# ==========================================================================
+@st.cache_data(ttl=30, show_spinner=False)
+def _cached_status():
+    """Estado del sistema cacheado 30s (no re-chequear en cada rerun de Streamlit)."""
+    return status.system_status()
+
+
+# Banner accionable: si falta algo (Ollama, modelo o corpus), lo decimos con la
+# solución exacta EN VEZ de dejar que la app reviente al primer intento.
+_status = _cached_status()
+if not _status["ready"]:
+    _hints = status.fix_hints(_status)
+    st.error(
+        "**MIA no está listo todavía.** Falta poner en marcha algo antes de preguntar:\n\n"
+        + "\n".join(f"- {h}" for h in _hints),
+        icon=":material/build:",
+    )
+
+
+# ==========================================================================
 # 2) Barra lateral: información y ajustes
 # ==========================================================================
 with st.sidebar:
@@ -385,6 +408,25 @@ with st.sidebar:
     st.divider()
     st.caption(f":material/coronavirus: Enfermedad: **{config.DISEASE}**")
     st.caption(f":material/tune: Umbral de evidencia: {config.SIMILARITY_THRESHOLD}")
+
+    # --- Estado del sistema: semáforos reales (Ollama / modelo / corpus) ---
+    st.divider()
+    st.subheader(":material/monitor_heart: Estado del sistema")
+    _s = _cached_status()
+    _ollama_ok = _s["ollama"]["up"]
+    _modelo_ok = all(_s["models"].values())
+    _corpus = _s["corpus"]
+    st.markdown(
+        f"- {'🟢' if _ollama_ok else '🔴'} **Ollama** "
+        f"{'en marcha' if _ollama_ok else 'no responde'}\n"
+        f"- {'🟢' if _modelo_ok else '🔴'} **Modelo biomédico** "
+        f"{'descargado' if _modelo_ok else 'no encontrado'}\n"
+        f"- {'🟢' if _corpus['ok'] else '🔴'} **Corpus** "
+        f"{_corpus['chunks']:,} fragmentos".replace(",", ".")
+    )
+    if not _s["ready"]:
+        st.caption("⚠️ Revisa el aviso de arriba para ponerlo en marcha.")
+
     st.info("Por ahora hay que **preguntar en inglés** (el modelo biomédico "
             "es fiable solo en inglés).", icon=":material/translate:")
 
@@ -695,11 +737,21 @@ def _render_answer(texto: str):
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Estado vacío: mensaje de bienvenida + preguntas de ejemplo clicables.
-EJEMPLOS = [
-    "Is lebrikizumab effective for atopic dermatitis?",
-    "How does dupilumab compare to tralokinumab in safety?",
-    "What are the most common adverse events of upadacitinib?",
+# Estado vacío: bienvenida + galería de ejemplos clicables, agrupados por INTENCIÓN
+# (eficacia / seguridad / comparativa) → el usuario ve de un vistazo qué sabe hacer.
+EJEMPLOS_POR_INTENCION = [
+    ("Eficacia", ":material/trending_up:", [
+        "Is lebrikizumab effective for atopic dermatitis?",
+        "What is the efficacy of dupilumab in atopic dermatitis?",
+    ]),
+    ("Seguridad", ":material/health_and_safety:", [
+        "What are the most common adverse events of upadacitinib?",
+        "Is baricitinib safe for long-term use in atopic dermatitis?",
+    ]),
+    ("Comparativa", ":material/compare_arrows:", [
+        "How does dupilumab compare to tralokinumab in safety?",
+        "Dupilumab vs upadacitinib efficacy in atopic dermatitis?",
+    ]),
 ]
 
 if not st.session_state.messages:
@@ -716,11 +768,13 @@ if not st.session_state.messages:
         unsafe_allow_html=True,
     )
     st.write("")
-    cols = st.columns(len(EJEMPLOS))
-    for col, ej in zip(cols, EJEMPLOS):
-        if col.button(ej, use_container_width=True):
-            st.session_state.pending_q = ej
-            st.rerun()
+    for titulo, icono, ejemplos in EJEMPLOS_POR_INTENCION:
+        st.caption(f"{icono} **{titulo}**")
+        cols = st.columns(len(ejemplos))
+        for col, ej in zip(cols, ejemplos):
+            if col.button(ej, use_container_width=True, key=f"ej_{ej[:24]}"):
+                st.session_state.pending_q = ej
+                st.rerun()
 
 
 def _render_scout_panel(scout):
@@ -738,6 +792,20 @@ def _render_scout_panel(scout):
         </div>
         """,
         unsafe_allow_html=True,
+    )
+
+
+def _render_generation_error(exc):
+    """Tarjeta accionable cuando la generación falla (Ollama caído, etc.). Re-chequea
+    el estado en vivo (sin caché) para dar la solución exacta en vez de un traceback."""
+    s = status.system_status()
+    hints = status.fix_hints(s)
+    if not hints:  # el sistema parece OK → error inesperado; damos la pista técnica
+        hints = [f"Error inesperado del modelo: `{type(exc).__name__}: {exc}`. "
+                 "Reintenta; si persiste, revisa que Ollama tenga memoria suficiente."]
+    st.error(
+        "**No he podido generar la respuesta.**\n\n" + "\n".join(f"- {h}" for h in hints),
+        icon=":material/error:",
     )
 
 
@@ -792,6 +860,28 @@ def _render_assistant(data):
 
     _render_sources(citadas)          # "Fuentes citadas" = solo las que cita el texto
     _render_other_sources(otras)      # recuperadas-no-citadas, con su motivo
+    _render_export_button(data, texto, citadas)
+
+
+def _render_export_button(data, texto, citadas):
+    """Botón 'Descargar informe': genera un HTML autónomo (imprimible → PDF) con la
+    respuesta, sus citas, los datos clave y las fuentes. Solo si hay algo que citar."""
+    if not citadas:
+        return
+    pregunta = data.get("question") or data.get("condensed_question") or ""
+    html_report = report.build_report_html(pregunta, data)
+    # Clave estable entre reruns (hash del contenido) para que Streamlit no se queje.
+    key = "dl_" + hashlib.md5((pregunta + texto).encode("utf-8")).hexdigest()[:10]
+    st.download_button(
+        "Descargar informe (HTML → PDF)",
+        data=html_report,
+        file_name=f"MIA_informe_{datetime.now():%Y%m%d_%H%M}.html",
+        mime="text/html",
+        key=key,
+        icon=":material/download:",
+        help="Documento con marca, con la pregunta, la respuesta citada y las fuentes. "
+             "Ábrelo y usa Ctrl+P → Guardar como PDF para compartirlo.",
+    )
 
 
 # Re-pintamos todo el historial en cada recarga (así es Streamlit).
@@ -821,26 +911,35 @@ if pregunta:
     with st.chat_message("user"):
         st.markdown(pregunta)
 
-    # 2) Generamos la respuesta.
+    # 2) Generamos la respuesta. Envuelto en try/except: un fallo (p. ej. Ollama
+    #    caído a mitad) muestra una tarjeta accionable en vez de reventar la app.
     with st.chat_message("assistant"):
-        with st.spinner("Buscando evidencia y razonando con el modelo local…"):
-            if usar_scout:
-                resultado = scout.answer_with_scout(pregunta, history=historial)
-            else:
-                resultado = rag.answer(pregunta, history=historial)
-                resultado["used_scout"] = False
+        resultado = None
+        try:
+            with st.spinner("Buscando evidencia y razonando con el modelo local…"):
+                if usar_scout:
+                    resultado = scout.answer_with_scout(pregunta, history=historial)
+                else:
+                    resultado = rag.answer(pregunta, history=historial)
+                    resultado["used_scout"] = False
+        except Exception as exc:  # noqa: BLE001 — queremos degradar con elegancia
+            _render_generation_error(exc)
 
-        # Mismo renderizador que el historial (respuesta + Data Cards + paneles).
-        _render_assistant(resultado)
+        if resultado is not None:
+            resultado["question"] = pregunta  # para el informe exportable
+            # Mismo renderizador que el historial (respuesta + Data Cards + paneles).
+            _render_assistant(resultado)
 
-    # 3) Guardamos la respuesta en el historial. Persistimos también las señales
-    #    que necesitan las Data Cards / paneles para re-pintarse igual tras rerun.
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": resultado["answer"],
-        "sources": resultado.get("sources"),
-        "has_evidence": resultado.get("has_evidence"),
-        "used_scout": resultado.get("used_scout"),
-        "scout": resultado.get("scout"),
-        "condensed_question": resultado.get("condensed_question"),
-    })
+    # 3) Guardamos la respuesta en el historial (solo si se generó). Persistimos las
+    #    señales que necesitan las Data Cards / paneles / informe para re-pintarse igual.
+    if resultado is not None:
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": resultado["answer"],
+            "question": pregunta,
+            "sources": resultado.get("sources"),
+            "has_evidence": resultado.get("has_evidence"),
+            "used_scout": resultado.get("used_scout"),
+            "scout": resultado.get("scout"),
+            "condensed_question": resultado.get("condensed_question"),
+        })
