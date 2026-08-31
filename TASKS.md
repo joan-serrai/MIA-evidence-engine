@@ -12,7 +12,11 @@ Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a va
 
 ## 🔨 En curso
 
-- **Veredicto por pregunta en la Comparativa** (código escrito, pendiente de rodaje).
+*(nada en curso ahora mismo — ver Pendientes)*
+
+## ✅ Cerrado en esta sesión (31-ago-2026)
+
+- **Veredicto por pregunta en la Comparativa.**
   - [✅] `src/triplet_agent.py` — agente catalogador (ancla/positivo/negativo) con
         verificación contra el corpus y **abstención** si no puede verificar.
         Fallback determinista por mecanismo si el LLM falla.
@@ -23,8 +27,12 @@ Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a va
   - [✅] UI: banner de veredicto + expander con el benchmark agregado.
   - [✅] `src/compare.py`: `answer_from_backend` reutiliza el pipeline completo
         de `rag` (`_build_context` / `_generate_answer` / aviso de acceso).
-  - [ ] **Rodar la página de Comparativa** con preguntas de ejemplo y libres, y
-        comprobar que el agente se abstiene cuando toca.
+  - [✅] **Rodada de verdad en el navegador**: con "Antibody targeting the IL-4 receptor
+        alpha for atopic eczema", MedCPT puso dupilumab en el puesto 1 y OpenAI en el 3;
+        el banner, los chips de métricas y las dos columnas se pintan bien.
+  - [✅] Arreglado: `verdict.py` no se podía ejecutar directo (importes relativos en
+        caliente sin paquete padre). Ahora usa el patrón de importes duales.
+  - [✅] Arreglado: `use_container_width` (retirado de Streamlit el 31-12-2025) → `width="stretch"`.
 
 ## ⏳ Pendientes
 
