@@ -153,9 +153,16 @@ def answer_from_backend(question, backend, collection_name, top_k=None):
     `retrieve_ranked`: aquel enseña QUÉ recupera cada uno; este, en qué se traduce
     esa recuperación cuando el mismo modelo redacta a partir de ella.)
 
-    Reutiliza el ensamblado de contexto y el post-proceso de citas de `rag`, pero
-    con un contexto MÍNIMO (sin el gráfico de outcomes, que no aplica aquí) para no
-    acoplar este módulo a la colección de producto. Devuelve {answer, sources}.
+    Para que la respuesta se vea IGUAL DE BIEN que en el chat principal, reutiliza
+    EXACTAMENTE el mismo pipeline de redacción de `rag`: `_build_context` (contexto
+    [Doc N] + fuentes ENRIQUECIDAS con outcomes y acceso), `_generate_answer`
+    (prompt profesional + intención) y el aviso de "paper de pago". Devuelve
+    {answer, sources}.
+
+    ¿No acopla esto a la colección de producto? No: `_build_context` extrae los
+    outcomes con `rag._full_doc_text(doc_id)`, que lee el TEXTO por doc_id — y el
+    texto es IDÉNTICO en las dos colecciones (solo cambia el vector). No muta el
+    estado global → seguro en Streamlit multipágina.
     """
     if top_k is None:
         top_k = config.TOP_K
@@ -172,40 +179,17 @@ def answer_from_backend(question, backend, collection_name, top_k=None):
         {"text": t, "metadata": m, "similarity": 1.0 - d}
         for t, m, d in zip(res["documents"][0], res["metadatas"][0], res["distances"][0])
     ]
-
-    # 2) Colapsar a UN registro por documento (reutilizamos la lógica de rag) y
-    #    armar un contexto [Doc N] + lista de fuentes (mínima, para la UI).
-    documentos = rag._group_by_document(fragmentos, top_k)
-    lineas, fuentes = [], []
-    presupuesto = config.MAX_CONTEXT_CHARS
-    for i, doc in enumerate(documentos, start=1):
-        meta = doc["metadata"]
-        trozos = [t for _, t in sorted(doc["chunks"], key=lambda c: c[0])]
-        texto_doc = " ".join(trozos)
-        if len(texto_doc) > presupuesto:
-            texto_doc = texto_doc[:max(0, presupuesto)].rstrip() + " […]"
-        presupuesto -= len(texto_doc)
-        lineas.append(f"[Doc {i}]\n{texto_doc}")
-        fuentes.append({
-            "n": i,
-            "source": meta.get("source"),
-            "doc_id": meta.get("doc_id"),
-            "title": meta.get("title"),
-            "url": meta.get("url"),
-            "drugs": meta.get("drugs"),                 # el repartidor de citas los usa
-            "snippet": rag._excerpt(doc["chunks"][0][1]),  # (título+snippet+fármacos)
-            "similarity": round(doc["similarity"], 3),
-        })
-        if presupuesto <= 0:
-            break
-
-    if not fuentes:
+    if not fragmentos:
         return {"answer": "No se recuperó evidencia para redactar una respuesta.",
                 "sources": []}
 
-    # 3) Redactar con el LLM común + post-proceso determinista de citas (idéntico
-    #    a rag.answer: reparto de [Doc N] y borrado de citas fuera de rango).
-    contexto = "\n\n".join(lineas)
+    # 2) MISMA construcción de contexto que el chat principal (fuentes ricas:
+    #    outcomes, acceso, n_fragments, snippet).
+    contexto, fuentes = rag._build_context(fragmentos)
+
+    # 3) MISMA redacción que rag.answer: prompt profesional + intención (detectada
+    #    dentro de _generate_answer), reparto y limpieza deterministas de citas, y
+    #    aviso de acceso restringido para fuentes de pago citadas.
     salida = rag._generate_answer(contexto, question)
     if salida is None:
         salida = ("No se pudo generar una respuesta fiable a partir de esta "
@@ -213,6 +197,7 @@ def answer_from_backend(question, backend, collection_name, top_k=None):
     else:
         salida = citations.redistribute_citations(salida, fuentes)
     salida = citations.strip_invalid_citations(salida, len(fuentes))
+    salida = rag._append_access_notice(salida, fuentes)
     return {"answer": salida, "sources": fuentes}
 
 

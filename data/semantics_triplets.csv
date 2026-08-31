@@ -1,0 +1,34 @@
+backend,nivel,ancla,positivo,negativo,sim_pos,sim_neg,acierto
+MedCPT (biomedico),Sinonimos,atopic dermatitis,eczema,malaria,59.5629,49.2138,1
+MedCPT (biomedico),Sinonimos,atopic dermatitis,neurodermatitis,hypertension,52.0983,45.7276,1
+MedCPT (biomedico),Sinonimos,itch,pruritus,bone fracture,61.8879,46.9441,1
+MedCPT (biomedico),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,tralokinumab,upadacitinib,51.5759,50.348,1
+MedCPT (biomedico),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,lebrikizumab,baricitinib,52.1431,50.2562,1
+MedCPT (biomedico),Mecanismo->farmaco,IL-4 receptor alpha antagonist,dupilumab,nemolizumab,50.7122,53.4679,0
+MedCPT (biomedico),Mecanismo->farmaco,IL-31 receptor signaling inhibitor,nemolizumab,abrocitinib,50.4708,47.746,1
+MedCPT (biomedico),Mecanismo->farmaco,JAK1-selective inhibitor,upadacitinib,tralokinumab,57.7517,51.5218,1
+MedCPT (biomedico),Mecanismo->farmaco,JAK1 and JAK2 inhibitor,baricitinib,dupilumab,59.9495,48.2938,1
+MedCPT (biomedico),Clase,dupilumab,tralokinumab,upadacitinib,59.8822,56.2251,1
+MedCPT (biomedico),Clase,upadacitinib,abrocitinib,dupilumab,59.5244,51.6673,1
+OpenAI 3-small (generalista),Sinonimos,atopic dermatitis,eczema,malaria,0.6862,0.1883,1
+OpenAI 3-small (generalista),Sinonimos,atopic dermatitis,neurodermatitis,hypertension,0.5856,0.2597,1
+OpenAI 3-small (generalista),Sinonimos,itch,pruritus,bone fracture,0.3518,0.234,1
+OpenAI 3-small (generalista),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,tralokinumab,upadacitinib,0.5251,0.4309,1
+OpenAI 3-small (generalista),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,lebrikizumab,baricitinib,0.4413,0.4225,1
+OpenAI 3-small (generalista),Mecanismo->farmaco,IL-4 receptor alpha antagonist,dupilumab,nemolizumab,0.4899,0.5049,0
+OpenAI 3-small (generalista),Mecanismo->farmaco,IL-31 receptor signaling inhibitor,nemolizumab,abrocitinib,0.4358,0.4472,0
+OpenAI 3-small (generalista),Mecanismo->farmaco,JAK1-selective inhibitor,upadacitinib,tralokinumab,0.5337,0.471,1
+OpenAI 3-small (generalista),Mecanismo->farmaco,JAK1 and JAK2 inhibitor,baricitinib,dupilumab,0.4476,0.3922,1
+OpenAI 3-small (generalista),Clase,dupilumab,tralokinumab,upadacitinib,0.5915,0.4514,1
+OpenAI 3-small (generalista),Clase,upadacitinib,abrocitinib,dupilumab,0.7067,0.4513,1
+bge-small (generalista local),Sinonimos,atopic dermatitis,eczema,malaria,0.7685,0.5529,1
+bge-small (generalista local),Sinonimos,atopic dermatitis,neurodermatitis,hypertension,0.7085,0.5352,1
+bge-small (generalista local),Sinonimos,itch,pruritus,bone fracture,0.7638,0.5415,1
+bge-small (generalista local),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,tralokinumab,upadacitinib,0.6913,0.6647,1
+bge-small (generalista local),Mecanismo->farmaco,anti-IL-13 monoclonal antibody,lebrikizumab,baricitinib,0.6688,0.6477,1
+bge-small (generalista local),Mecanismo->farmaco,IL-4 receptor alpha antagonist,dupilumab,nemolizumab,0.6359,0.6547,0
+bge-small (generalista local),Mecanismo->farmaco,IL-31 receptor signaling inhibitor,nemolizumab,abrocitinib,0.6453,0.6829,0
+bge-small (generalista local),Mecanismo->farmaco,JAK1-selective inhibitor,upadacitinib,tralokinumab,0.6908,0.6866,1
+bge-small (generalista local),Mecanismo->farmaco,JAK1 and JAK2 inhibitor,baricitinib,dupilumab,0.6569,0.5988,1
+bge-small (generalista local),Clase,dupilumab,tralokinumab,upadacitinib,0.5775,0.6336,0
+bge-small (generalista local),Clase,upadacitinib,abrocitinib,dupilumab,0.8731,0.6336,1

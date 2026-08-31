@@ -23,7 +23,7 @@ import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 import config
-from src import compare
+from src import compare, verdict
 
 st.set_page_config(
     page_title="MIA · Comparativa de modelos",
@@ -133,6 +133,21 @@ st.markdown(
 
       .cmp-note { font-size:.8rem; color:var(--mia-slate); background:var(--mia-bg-soft,#fafafa);
                   border:1px solid var(--mia-line); border-radius:10px; padding:10px 14px; margin:6px 0 2px; }
+
+      /* Banner del VEREDICTO por pregunta (qué embedding entendió mejor). */
+      .verdict { border-radius:14px; padding:14px 18px; margin:4px 0 14px; color:#fff; }
+      .verdict.win     { background:linear-gradient(135deg,#3f6e66,#2c524c); }
+      .verdict.tie     { background:linear-gradient(135deg,#5b6b8c,#3f4c6b); }
+      .verdict.abstain { background:#fafafa; color:var(--mia-slate); border:1px dashed #d6d6d6; }
+      .verdict .v-head { font-size:.7rem; font-weight:800; letter-spacing:.08em;
+                         text-transform:uppercase; opacity:.85; margin-bottom:4px; }
+      .verdict .v-text { font-size:1.02rem; font-weight:700; line-height:1.4; }
+      .verdict .v-agent{ font-size:.8rem; opacity:.9; margin-top:8px;
+                         font-family:var(--mia-mono); }
+      .verdict .v-metrics { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+      .verdict .v-chip { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
+                         border-radius:999px; padding:3px 11px; font-size:.75rem; font-weight:700; }
+      .verdict.abstain .v-chip { background:#fff; border-color:var(--mia-line); color:var(--mia-slate); }
     </style>
     """,
     unsafe_allow_html=True,
@@ -162,7 +177,7 @@ st.caption("Prueba un ejemplo por **mecanismo** (sin nombrar el fármaco) — es
            "un embedding biomédico debería destacar:")
 cols_ej = st.columns(len(EJEMPLOS))
 for col, ej in zip(cols_ej, EJEMPLOS):
-    if col.button(ej["q"], use_container_width=True):
+    if col.button(ej["q"], width="stretch"):
         st.session_state.cmp_q = ej["q"]
         st.session_state.cmp_drugs = ej["drugs"]
 
@@ -260,6 +275,49 @@ def _render_columna(etiqueta, sub, css, res, ans=None):
         )
 
 
+def _render_verdict(v):
+    """Banner del veredicto por pregunta: qué embedding entendió mejor (o, si el
+    agente no pudo fijar un objetivo verificado, una abstención sin ganador)."""
+    if v["abstained"]:
+        st.markdown(
+            '<div class="verdict abstain">'
+            '<div class="v-head">Veredicto por pregunta</div>'
+            '<div class="v-text">Sin ganador declarado</div>'
+            f'<div class="v-agent">{html.escape(v["verdict_text"])}</div>'
+            '</div>', unsafe_allow_html=True)
+        return
+
+    css = "win" if v["winner"] else "tie"
+    head = ("Qué modelo entendió mejor la pregunta" if v["winner"]
+            else "Empate entre los dos modelos")
+
+    # Si el agente catalogó una pregunta libre, mostramos cómo la interpretó.
+    agent_html = ""
+    if v.get("positive") and v.get("agent_source") in ("llm", "fallback"):
+        agent_html = (
+            f'<div class="v-agent">El agente interpretó: ancla «{html.escape(v["anchor"])}» → '
+            f'esperaba <b>{html.escape(v["positive"])}</b>, no '
+            f'<b>{html.escape(v["negative"] or "—")}</b> (fuente: {html.escape(v["agent_source"])})</div>')
+
+    # Chips de métricas por motor (para la defensa: se ve el porqué del veredicto).
+    chips = []
+    for m in v["per_backend"]:
+        r = m["first_correct_rank"]
+        pos = f"1º correcto en puesto {r}" if r else "sin correcto en top-k"
+        auc = f" · AUC {m['auc']}" if m["auc"] is not None else ""
+        tri = (" · triplete ✓" if m["triplet_ok"] else
+               (" · triplete ✗" if m["triplet_ok"] is False else ""))
+        chips.append(f'<span class="v-chip">{html.escape(m["engine"])}: {pos}{auc}{tri}</span>')
+    chips_html = f'<div class="v-metrics">{"".join(chips)}</div>'
+
+    st.markdown(
+        f'<div class="verdict {css}">'
+        f'<div class="v-head">{head}</div>'
+        f'<div class="v-text">{html.escape(v["verdict_text"])}</div>'
+        f'{agent_html}{chips_html}'
+        '</div>', unsafe_allow_html=True)
+
+
 # ==========================================================================
 # Recuperación y render de las dos columnas
 # ==========================================================================
@@ -269,17 +327,24 @@ if not pregunta:
 else:
     st.markdown(f"### :material/quiz: {html.escape(pregunta)}")
     try:
-        with st.spinner("Recuperando evidencia con los dos modelos…"):
-            res_izq = compare.retrieve_ranked(
-                pregunta, IZQ[1], IZQ[2], target_drugs=target_drugs)
-            res_der = compare.retrieve_ranked(
-                pregunta, DER[1], DER[2], target_drugs=target_drugs)
+        # question_verdict recupera con los DOS backends y, si es pregunta libre,
+        # llama al agente catalogador (por eso el spinner menciona el análisis).
+        with st.spinner("Analizando la pregunta y recuperando evidencia con los dos modelos…"):
+            veredicto = verdict.question_verdict(pregunta, target_drugs=target_drugs or None)
     except Exception as e:
         st.error(f"No se pudo completar la comparación: {e}\n\n"
                  "Comprueba que existe la colección de OpenAI (ejecuta "
                  "`index_openai.py`) y que `OPENAI_API_KEY` está en el `.env`.",
                  icon=":material/error:")
     else:
+        # Reutilizamos la recuperación que YA hizo el veredicto (no re-recuperamos).
+        # per_backend[0]=MIA(MedCPT), [1]=Centivence(OpenAI) — mismo orden que IZQ/DER.
+        res_izq = veredicto["per_backend"][0]
+        res_der = veredicto["per_backend"][1]
+
+        # Banner del veredicto por pregunta ARRIBA de las columnas.
+        _render_verdict(veredicto)
+
         # Redacción opcional: dos llamadas al LLM local (una por backend). Solo si
         # el toggle está activo (por eso el spinner y el coste van aquí dentro).
         ans_izq = ans_der = None
@@ -315,3 +380,35 @@ else:
             'documentos son del fármaco correcto.</div>',
             unsafe_allow_html=True,
         )
+
+
+# ==========================================================================
+# BENCHMARK AGREGADO (respaldo científico del veredicto por pregunta)
+# ==========================================================================
+# El veredicto de arriba mide UNA pregunta. Este benchmark, precomputado por
+# `evaluate_embeddings_semantics.py`, mide la COMPRENSIÓN semántica sobre un set
+# etiquetado a mano (triplet accuracy + AUC por nivel). Es la capa "dura" del
+# experimento: verdad = biología humana, no el juicio del agente.
+st.divider()
+with st.expander("📊 Benchmark agregado de comprensión semántica (triplet accuracy + AUC)",
+                 expanded=False):
+    _bench_csv = config.DATA_DIR / "semantics_summary.csv"
+    if not _bench_csv.exists():
+        st.info("Aún no hay benchmark. Ejecútalo una vez con "
+                "`./.venv/Scripts/python.exe evaluate_embeddings_semantics.py` "
+                "para generar `data/semantics_summary.csv`.",
+                icon=":material/info:")
+    else:
+        try:
+            import pandas as pd
+            _df = pd.read_csv(_bench_csv)
+            st.caption("Dos zonas de rigor: aquí, evidencia AGREGADA sobre un set "
+                       "etiquetado a mano; arriba, el veredicto EN VIVO por pregunta. "
+                       "El nivel **Mecanismo→fármaco** es donde un embedding biomédico "
+                       "debería destacar.")
+            st.dataframe(_df, width="stretch", hide_index=True)
+            st.caption("triplet_acc = % de tripletes con el positivo más cerca que el "
+                       "negativo (0.5 = azar). AUC = margen/limpieza de la separación "
+                       "(1.0 = separa perfecto).")
+        except Exception as e:
+            st.warning(f"No pude leer el benchmark: {e}", icon=":material/warning:")

@@ -433,7 +433,7 @@ with st.sidebar:
     if st.session_state.get("messages"):
         st.divider()
         if st.button("Borrar conversación", icon=":material/delete:",
-                     use_container_width=True):
+                     width="stretch"):
             st.session_state.messages = []
             st.rerun()
 
@@ -772,7 +772,7 @@ if not st.session_state.messages:
         st.caption(f"{icono} **{titulo}**")
         cols = st.columns(len(ejemplos))
         for col, ej in zip(cols, ejemplos):
-            if col.button(ej, use_container_width=True, key=f"ej_{ej[:24]}"):
+            if col.button(ej, width="stretch", key=f"ej_{ej[:24]}"):
                 st.session_state.pending_q = ej
                 st.rerun()
 

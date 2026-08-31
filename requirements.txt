@@ -13,3 +13,4 @@ streamlit>=1.36       # interfaz de usuario (chat)
 pandas>=2.0           # manejo de tablas/datos
 tqdm>=4.66            # barras de progreso al descargar/procesar
 openai>=1.0           # embeddings text-embedding-3-small SOLO para la evaluación comparativa
+matplotlib>=3.7       # gráficos de las evaluaciones (mapas semánticos, barras) — opcional
