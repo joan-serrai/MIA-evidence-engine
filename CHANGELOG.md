@@ -25,6 +25,59 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-01 · Instrumento de evaluación por fuente (y dos hallazgos incómodos)
+
+### Corregido — las dos colecciones habían divergido
+Al indexar los resultados de CT.gov solo se reindexó la colección de MedCPT:
+**9.734 chunks frente a 8.920 en la de OpenAI**. Eso invalidaba el experimento de
+la tesis, donde lo ÚNICO que debe cambiar entre las dos es el vector. Re-ejecutado
+`index_openai.py`: ambas colecciones vuelven a tener 9.734 chunks y 1.117 de CT.gov.
+
+### Añadido
+- `evaluate_sources.py` — mide un eje que hasta ahora nadie medía: **qué fuente
+  aporta la evidencia** y **si el umbral está bien calibrado para cada una**. No
+  toca `evaluate_embeddings.py`: ese mide la tesis (MedCPT vs OpenAI) y sus
+  números están publicados; mezclar ejes lo enturbiaría.
+- 12 preguntas de **seguridad** (el gold set original era casi todo eficacia) y 15
+  de **control negativo**, deliberadamente más duras que antes: no solo "capital
+  de Francia", también otras patologías (malaria, diabetes) y otros fármacos
+  (adalimumab en artritis). Un umbral solo tiene sentido si sabes qué queda a
+  cada lado, y lo que queda al lado no son preguntas absurdas.
+- Comprobación de si llega **el tipo de dato** que la pregunta pide: en seguridad
+  no basta con recuperar el fármaco correcto, tiene que llegar alguna cifra de
+  evento adverso. Se verifica con el extractor determinista de `outcomes.py`.
+
+### Medido — lo que sale bien
+- **ClinicalTrials aporta cifras de eventos adversos en 10 de 12 preguntas de
+  seguridad; PubMed, en 4 de 12.** Dos veces y media mejor. La Capa 1 queda
+  justificada con datos, no con intuición.
+- CT.gov ocupa el 8-12% del top-5 según el nivel, cerca de su tasa base (11,5%):
+  globalmente no está silenciada, el problema es de preguntas concretas.
+
+### Medido — los dos hallazgos incómodos
+1. **El umbral 66,0 es más frágil de lo que parecía.** Con un control negativo
+   duro, el hueco de PubMed cae a **+1,79** (con los controles fáciles originales
+   daba +6,6). Es decir: el 66,0 separa bien de "capital de Francia", pero apenas
+   de "tratamiento de la diabetes tipo 2". La hipótesis de ayer —bajarlo a ~63—
+   **no es segura**: el percentil 95 de las ajenas está en 63,35.
+   Sí queda margen para un umbral **por fuente**: CT.gov separa MEJOR (+3,00 de
+   hueco) que PubMed (+1,79), así que puede permitirse un corte más bajo.
+   Hoy pierde 4 de 33 preguntas en las que tenía el fármaco correcto (sim 63,1-63,8).
+2. **Con OpenAI no existe umbral válido.** El hueco es NEGATIVO en las dos
+   fuentes (−0,02 en PubMed, −0,07 en CT): las preguntas ajenas puntúan MÁS ALTO
+   que las relevantes. Es exactamente el mismo fallo que tuvo MedCPT con coseno
+   (ver más abajo, migración a MedCPT).
+
+   **Esto es un resultado de tesis, no una nota técnica.** Hasta ahora MedCPT
+   ganaba a OpenAI en ranking (hit@1, MRR). Este es un eje distinto y más
+   decisivo: **MedCPT puede sostener una puerta de evidencia y OpenAI no**. Para
+   un sistema cuyo lema es "sin evidencia, no responde", eso no es un matiz.
+
+Salidas: `data/evaluation_sources.csv` (33 preguntas × 2 backends) y
+`data/evaluation_thresholds.csv` (calibración por backend × fuente).
+
+---
+
 ## 2026-09-01 · Resultados de ClinicalTrials.gov e interfaz "Aurora LSHC"
 
 ### Añadido — Capa 1: los resultados de los ensayos

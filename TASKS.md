@@ -22,6 +22,15 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **Decidir el umbral por fuente (opción A).** Ya está el instrumento
+  (`evaluate_sources.py`) y la medición hecha. Resultado: CT.gov separa mejor
+  (+3,00 de hueco) que PubMed (+1,79), así que un umbral propio ~62-63 para
+  CT.gov es defendible y recuperaría 4 de 33 preguntas que hoy se pierden. PERO
+  el margen de PubMed con controles duros es fino: **no bajar su 66,0 sin más
+  medición**. Cambio pendiente de decisión, no de código.
+- **El umbral 66,0 se calibró con controles fáciles.** Frente a preguntas médicas
+  de otras patologías el hueco es de solo +1,79. Merece una recalibración seria
+  con el control negativo nuevo, y decirlo en la memoria.
 - **Los ensayos de CT.gov no ganan en el ranking.** Sus resultados ya están
   indexados (Capa 1 hecha), pero MedCPT casi siempre prefiere las revisiones de
   PubMed: hay 2.971 papers frente a 189 ensayos, y un abstract se parece más a

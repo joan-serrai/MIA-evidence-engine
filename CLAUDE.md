@@ -87,7 +87,15 @@ Dos "marcas" recurrentes en el código y la UI:
 
 # 3) CAPA 1 — comprensión semántica: tripletes + AUC sobre MedCPT/OpenAI/bge → data/semantics_*.csv y .png
 ./.venv/Scripts/python.exe evaluate_embeddings_semantics.py
+
+# 4) POR FUENTE — PubMed vs ClinicalTrials + calibración del umbral → data/evaluation_sources.csv
+./.venv/Scripts/python.exe evaluate_sources.py
 ```
+
+> ⚠️ **Si reindexas la colección de MedCPT, vuelve a ejecutar `index_openai.py`.**
+> Las dos colecciones deben tener EXACTAMENTE los mismos chunks o la comparativa
+> de la tesis deja de ser un experimento controlado. Ya pasó una vez (1-sep-2026):
+> 9.734 vs 8.920 chunks.
 
 ### Utilidades / mantenimiento
 

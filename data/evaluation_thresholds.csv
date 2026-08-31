@@ -1,0 +1,5 @@
+backend,fuente,n_relevantes,n_ajenas,rel_min,rel_p05,rel_mediana,aje_p95,aje_max,hueco,umbral_actual,umbral_sugerido,hueco_limpio
+"MedCPT (biomédico, MIA)",PubMed,33,15,65.07,65.14,70.62,63.35,63.05,1.79,66.0,64.2,1
+"MedCPT (biomédico, MIA)",ClinicalTrials,33,15,63.16,63.17,68.6,60.17,60.1,3.0,66.0,61.7,1
+OpenAI 3-small (Centivence),PubMed,33,15,0.66,0.67,0.77,0.69,0.66,-0.02,0.35,,0
+OpenAI 3-small (Centivence),ClinicalTrials,33,15,0.54,0.55,0.72,0.62,0.61,-0.07,0.35,,0
