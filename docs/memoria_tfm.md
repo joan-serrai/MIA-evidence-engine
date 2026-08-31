@@ -355,4 +355,9 @@ Declaradas de forma explícita, porque un trabajo que no las declara no es creí
   llama3:8b, qwen2.5:7b, text-embedding-3-small (solo evaluación).
 - **Resultados brutos:** `data/semantics_*.csv`, `data/evaluation_embeddings.csv`,
   `data/evaluation_summary.csv`, `data/evaluation_detail.csv`.
-- **Entorno:** Windows 11, Python 3.12, Ollama en `localhost:11434`. Detalle en `CLAUDE.md`.
+- **Entorno:** Windows 11, Python 3.12.10, Ollama 0.33.2 en `localhost:11434`. Las
+  dependencias están **fijadas con `==`** en `requirements.txt` (directas, comentadas) y en
+  `requirements.lock.txt` (árbol completo, 122 librerías), de modo que el tribunal puede
+  reconstruir el entorno exacto con el que se obtuvieron estos resultados. Versiones clave:
+  `chromadb 1.5.9`, `transformers 5.16.1`, `torch 2.13.0`, `sentence-transformers 6.0.1`,
+  `streamlit 1.62.0`, `openai 3.6.0`. Detalle en `CLAUDE.md` §2.

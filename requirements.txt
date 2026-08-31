@@ -1,16 +1,58 @@
 # Dependencias del proyecto MIA
-# Instálalas con:  pip install -r requirements.txt
+# Instálalas con:  ./.venv/Scripts/python.exe -m pip install -r requirements.txt
 #
-# Mantenemos la lista mínima a propósito: añadiremos más (p. ej. frameworks
-# de agentes como LlamaIndex/LangChain) solo cuando los necesitemos.
+# ─────────────────────────────────────────────────────────────────────────────
+# ¿POR QUÉ LAS VERSIONES ESTÁN FIJADAS CON "==" Y NO CON ">=" ?
+# ─────────────────────────────────────────────────────────────────────────────
+# Hasta el 31-ago-2026 este archivo usaba ">=" (p. ej. "chromadb>=0.5"), que
+# significa "esa versión o cualquiera posterior". Suena flexible, pero al montar
+# el proyecto en un ordenador nuevo pip instaló las últimas de todo, y llegaron
+# saltos de versión MAYOR respecto a las originales:
+#
+#     transformers  4.x  →  5.16     pandas  2.x  →  3.0
+#     numpy         1.x  →  2.5      torch   2.x  →  2.13
+#
+# Un salto de versión mayor puede romper la API sin previo aviso. Esta vez todo
+# funcionó (se verificó ejecutando el pipeline entero), pero fue SUERTE, no
+# diseño. Con "==" congelamos exactamente lo que sabemos que funciona: el
+# proyecto se reinstala igual dentro de un año, en otro equipo o para el
+# tribunal del TFM.
+#
+# ¿Y para actualizar? A propósito, a mano: se sube una dependencia, se prueba,
+# y si va bien se fija la nueva versión aquí. Nunca por accidente.
+#
+# Estas versiones están VERIFICADAS en Windows 11 + Python 3.12.10 (31-ago-2026):
+# corpus de 8.920 chunks recuperado con MedCPT, RAG completo con OpenBioLLM,
+# ambas páginas de Streamlit y las evaluaciones de embeddings.
+#
+# NOTA: aquí solo van las dependencias DIRECTAS (las que importa nuestro código).
+# El árbol completo, con las 122 librerías del entorno, está en
+# `requirements.lock.txt` — úsalo si necesitas reproducir el entorno EXACTO.
+# ─────────────────────────────────────────────────────────────────────────────
 
-requests>=2.31        # llamadas a las APIs de PubMed y ClinicalTrials.gov
-python-dotenv>=1.0    # leer variables de entorno desde el archivo .env
-chromadb>=0.5         # base de datos vectorial local
-sentence-transformers>=3.0   # embeddings locales (BAAI/bge-small-en-v1.5)
-ollama>=0.3           # cliente Python para el LLM biomédico local
-streamlit>=1.36       # interfaz de usuario (chat)
-pandas>=2.0           # manejo de tablas/datos
-tqdm>=4.66            # barras de progreso al descargar/procesar
-openai>=1.0           # embeddings text-embedding-3-small SOLO para la evaluación comparativa
-matplotlib>=3.7       # gráficos de las evaluaciones (mapas semánticos, barras) — opcional
+# --- Datos: descargar evidencia de las APIs públicas ---
+requests==2.34.2              # llamadas a PubMed y ClinicalTrials.gov
+python-dotenv==1.2.3          # leer variables de entorno desde el archivo .env
+
+# --- Base vectorial ---
+chromadb==1.5.9               # base de datos vectorial local (una colección por backend)
+
+# --- Embeddings ---
+sentence-transformers==6.0.1  # backend bge-small (BAAI/bge-small-en-v1.5)
+transformers==5.16.1          # MedCPT: src/embeddings.py usa AutoTokenizer/AutoModel
+torch==2.13.0                 # motor de cálculo de los dos anteriores
+numpy==2.5.2                  # vectores; lo usa evaluate_embeddings_semantics.py
+
+# --- LLM local ---
+ollama==0.6.2                 # cliente Python del servidor local de Ollama
+
+# --- Interfaz y datos tabulares ---
+streamlit==1.62.0             # interfaz de chat y página de comparativa
+pandas==3.0.5                 # manejo de tablas/datos
+matplotlib==3.11.1            # gráficos de las evaluaciones (mapas semánticos, barras)
+tqdm==4.70.0                  # barras de progreso al descargar/procesar
+
+# --- Solo para la EVALUACIÓN comparativa (la "línea Centivence") ---
+# El producto MIA es 100% local y NO usa esto: sirve únicamente para generar los
+# embeddings de OpenAI con los que se compara MedCPT.
+openai==3.6.0                 # text-embedding-3-small

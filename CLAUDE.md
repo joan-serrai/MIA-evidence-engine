@@ -36,6 +36,11 @@ Dos "marcas" recurrentes en el código y la UI:
   (no `python` a secas — el alias de Microsoft Store secuestra ese nombre).
 - **Es un repositorio git** (rama `master`, sin remoto). No hay framework de **tests** ni de
   **lint** configurado. La "prueba" de cada módulo es su bloque `if __name__ == "__main__"` (ver §5).
+- **Dependencias FIJADAS con `==`** (desde el 31-ago-2026). `requirements.txt` lleva las
+  directas con comentarios; `requirements.lock.txt` es el `pip freeze` completo (135 líneas)
+  para reproducir el entorno exacto. Antes usaban `>=` y al montar el proyecto en un equipo
+  nuevo llegaron saltos de versión MAYOR (transformers 4→5, pandas 2→3, numpy 1→2). Funcionó,
+  pero por suerte. **Al subir una dependencia: probar y volver a fijar la versión a mano.**
 - Requiere **[Ollama](https://ollama.com)** corriendo en `localhost:11434` con estos modelos
   descargados (`ollama pull <tag>`):
   - `koesn/llama3-openbiollm-8b:q4_K_M` — LLM biomédico (`config.LLM_MODEL`)

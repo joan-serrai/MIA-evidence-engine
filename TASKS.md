@@ -16,6 +16,12 @@ Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a va
 
 ## ✅ Cerrado en esta sesión (31-ago-2026)
 
+- **Versiones de dependencias fijadas.** `requirements.txt` pasa de `>=` a `==` (directas,
+  comentadas) y se añade `requirements.lock.txt` con el árbol completo. Motivo: al montar el
+  proyecto en el equipo nuevo, `>=` trajo saltos de versión MAYOR (transformers 4→5,
+  pandas 2→3, numpy 1→2). Funcionó, pero por suerte. Validado con `pip install --dry-run`
+  de ambos ficheros y `pip check` sin conflictos.
+
 - **Veredicto por pregunta en la Comparativa.**
   - [✅] `src/triplet_agent.py` — agente catalogador (ancla/positivo/negativo) con
         verificación contra el corpus y **abstención** si no puede verificar.

@@ -179,6 +179,11 @@ la app en el navegador.
    python -m venv .venv
    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
+   Las versiones están **fijadas** (`==`) a las verificadas el 31-ago-2026. Si algo fallara,
+   `requirements.lock.txt` reproduce el entorno **exacto**, con las 122 librerías del árbol:
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
+   ```
 4. **Credenciales**: copia `.env.example` a `.env` y rellena `OPENAI_API_KEY`
    (solo hace falta para la comparativa; el producto MIA no la usa).
 5. **Comprueba que todo arranca**:
