@@ -26,15 +26,15 @@ import config
 from src import compare, verdict
 
 st.set_page_config(
-    page_title="MIA · Comparativa de modelos",
+    page_title="MIA · Model comparison",
     page_icon=":material/compare_arrows:",
     layout="wide",
 )
 
 # Backends a enfrentar: (etiqueta, backend, colección, sublínea).
-IZQ = ("MIA", "medcpt", "mia_evidence_medcpt", "MedCPT · biomédico · 100% local")
+IZQ = ("MIA", "medcpt", "mia_evidence_medcpt", "MedCPT · biomedical · 100% local")
 DER = ("Centivence", "openai", "mia_evidence_openai",
-       "text-embedding-3-small · generalista · API OpenAI")
+       "text-embedding-3-small · generalist · OpenAI API")
 
 # Preguntas de ejemplo DIFÍCILES (por mecanismo/sinónimo, sin nombrar el fármaco):
 # es donde un embedding biomédico debería destacar. 'drugs' = objetivo correcto.
@@ -160,10 +160,10 @@ st.markdown(
 st.markdown(
     """
     <div class="cmp-hero">
-      <h1>Comparativa de recuperación · MIA vs Centivence</h1>
-      <p>La misma pregunta, el mismo corpus (~8.900 fragmentos de PubMed), el mismo
-      troceado. <b>Lo único que cambia es el modelo de embedding.</b> Así se ve qué
-      evidencia trae cada uno y, sobre todo, <b>en qué orden</b>.</p>
+      <h1>Retrieval comparison · MIA vs Centivence</h1>
+      <p>Same question, same corpus (~8,900 PubMed chunks), same chunking.
+      <b>The only thing that changes is the embedding model.</b> So you can see what
+      evidence each one brings and, above all, <b>in what order</b>.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -173,15 +173,15 @@ st.markdown(
 # ==========================================================================
 # Entrada: ejemplos difíciles + pregunta libre
 # ==========================================================================
-st.caption("Prueba un ejemplo por **mecanismo** (sin nombrar el fármaco) — es donde "
-           "un embedding biomédico debería destacar:")
+st.caption("Try a **mechanism** example (without naming the drug) — this is where "
+           "a biomedical embedding should stand out:")
 cols_ej = st.columns(len(EJEMPLOS))
 for col, ej in zip(cols_ej, EJEMPLOS):
     if col.button(ej["q"], width="stretch"):
         st.session_state.cmp_q = ej["q"]
         st.session_state.cmp_drugs = ej["drugs"]
 
-pregunta_libre = st.chat_input("…o escribe tu propia pregunta (en inglés)")
+pregunta_libre = st.chat_input("…or type your own question (in English)")
 if pregunta_libre:
     st.session_state.cmp_q = pregunta_libre
     st.session_state.cmp_drugs = []   # pregunta libre: sin objetivo conocido
@@ -194,10 +194,10 @@ target_drugs = st.session_state.get("cmp_drugs", [])
 # son DOS llamadas al LLM local (OpenBioLLM 8B) y tardan bastante; el ranking
 # solo es instantáneo. Así el usuario elige cuándo pagar esa espera.
 redactar = st.toggle(
-    "Redactar también la respuesta de cada modelo (usa el LLM local · más lento)",
+    "Also draft each model's answer (uses the local LLM · slower)",
     value=False,
-    help="Genera la respuesta que cada modelo daría a partir de SU evidencia "
-         "recuperada. El redactor es el mismo para ambos → la diferencia viene "
+    help="Generates the answer each model would give from ITS retrieved evidence. "
+         "The writer is the same for both, so any difference comes "
          "solo del embedding. Son 2 llamadas al modelo local, tarda unos segundos.",
 )
 
@@ -208,10 +208,10 @@ def _resumen_chips(res):
         return ""
     hit = res.get("hit1")
     hit_cls = "ok" if hit else "no"
-    hit_txt = "1er resultado correcto" if hit else "1er resultado NO correcto"
+    hit_txt = "1st result correct" if hit else "1st result NOT correct"
     return (f'<div class="h-sum">'
             f'<span class="h-chip {hit_cls}">hit@1 · {hit_txt}</span>'
-            f'<span class="h-chip">{res["n_on_target"]}/{res["total"]} del fármaco correcto</span>'
+            f'<span class="h-chip">{res["n_on_target"]}/{res["total"]} from the correct drug</span>'
             f'</div>')
 
 
@@ -229,7 +229,7 @@ def _render_answer_block(css, ans):
     cuerpo = _highlight_citations(ans.get("answer") or "").replace("\n\n", "</p><p>")
     st.markdown(
         f'<div class="rk-answer {css}">'
-        f'<div class="a-head">Respuesta redactada · mismo LLM local</div>'
+        f'<div class="a-head">Drafted answer · same local LLM</div>'
         f'<div class="a-body"><p>{cuerpo}</p></div></div>',
         unsafe_allow_html=True,
     )
@@ -249,9 +249,9 @@ def _render_columna(etiqueta, sub, css, res, ans=None):
         # cuando no hay objetivo (pregunta libre → on_target None).
         ot = d["on_target"]
         if ot is True:
-            card_cls, tag = "hit", '<span class="rk-tag ok">✓ fármaco correcto</span>'
+            card_cls, tag = "hit", '<span class="rk-tag ok">✓ correct drug</span>'
         elif ot is False:
-            card_cls, tag = "miss", '<span class="rk-tag no">otro fármaco</span>'
+            card_cls, tag = "miss", '<span class="rk-tag no">other drug</span>'
         else:
             card_cls, tag = "", ""
 
@@ -266,10 +266,10 @@ def _render_columna(etiqueta, sub, css, res, ans=None):
         st.markdown(
             f'<div class="rk {card_cls}">'
             f'<div class="rk-top"><span class="rk-rank">#{d["rank"]}</span>{tag}'
-            f'<span class="rk-conf">afinidad {d["confidence"]}%</span></div>'
+            f'<span class="rk-conf">affinity {d["confidence"]}%</span></div>'
             f'<div class="rk-title">{title}</div>'
             f'{pills_html}{snip_html}'
-            f'<a class="rk-link" href="{url}" target="_blank">Ver fuente ↗ ({did})</a>'
+            f'<a class="rk-link" href="{url}" target="_blank">Open source ↗ ({did})</a>'
             f'</div>',
             unsafe_allow_html=True,
         )
@@ -281,32 +281,32 @@ def _render_verdict(v):
     if v["abstained"]:
         st.markdown(
             '<div class="verdict abstain">'
-            '<div class="v-head">Veredicto por pregunta</div>'
-            '<div class="v-text">Sin ganador declarado</div>'
+            '<div class="v-head">Per-question verdict</div>'
+            '<div class="v-text">No winner declared</div>'
             f'<div class="v-agent">{html.escape(v["verdict_text"])}</div>'
             '</div>', unsafe_allow_html=True)
         return
 
     css = "win" if v["winner"] else "tie"
-    head = ("Qué modelo entendió mejor la pregunta" if v["winner"]
-            else "Empate entre los dos modelos")
+    head = ("Which model understood the question better" if v["winner"]
+            else "Tie between the two models")
 
     # Si el agente catalogó una pregunta libre, mostramos cómo la interpretó.
     agent_html = ""
     if v.get("positive") and v.get("agent_source") in ("llm", "fallback"):
         agent_html = (
-            f'<div class="v-agent">El agente interpretó: ancla «{html.escape(v["anchor"])}» → '
-            f'esperaba <b>{html.escape(v["positive"])}</b>, no '
-            f'<b>{html.escape(v["negative"] or "—")}</b> (fuente: {html.escape(v["agent_source"])})</div>')
+            f'<div class="v-agent">The agent read it as: anchor «{html.escape(v["anchor"])}» → '
+            f'expected <b>{html.escape(v["positive"])}</b>, no '
+            f'<b>{html.escape(v["negative"] or "—")}</b> (source: {html.escape(v["agent_source"])})</div>')
 
     # Chips de métricas por motor (para la defensa: se ve el porqué del veredicto).
     chips = []
     for m in v["per_backend"]:
         r = m["first_correct_rank"]
-        pos = f"1º correcto en puesto {r}" if r else "sin correcto en top-k"
+        pos = f"1st correct at rank {r}" if r else "no correct doc in top-k"
         auc = f" · AUC {m['auc']}" if m["auc"] is not None else ""
-        tri = (" · triplete ✓" if m["triplet_ok"] else
-               (" · triplete ✗" if m["triplet_ok"] is False else ""))
+        tri = (" · triplet ✓" if m["triplet_ok"] else
+               (" · triplet ✗" if m["triplet_ok"] is False else ""))
         chips.append(f'<span class="v-chip">{html.escape(m["engine"])}: {pos}{auc}{tri}</span>')
     chips_html = f'<div class="v-metrics">{"".join(chips)}</div>'
 
@@ -322,19 +322,19 @@ def _render_verdict(v):
 # Recuperación y render de las dos columnas
 # ==========================================================================
 if not pregunta:
-    st.info("Elige un ejemplo o escribe una pregunta para ver la comparación.",
+    st.info("Pick an example or type a question to see the comparison.",
             icon=":material/touch_app:")
 else:
     st.markdown(f"### :material/quiz: {html.escape(pregunta)}")
     try:
         # question_verdict recupera con los DOS backends y, si es pregunta libre,
         # llama al agente catalogador (por eso el spinner menciona el análisis).
-        with st.spinner("Analizando la pregunta y recuperando evidencia con los dos modelos…"):
+        with st.spinner("Analysing the question and retrieving with both models…"):
             veredicto = verdict.question_verdict(pregunta, target_drugs=target_drugs or None)
     except Exception as e:
-        st.error(f"No se pudo completar la comparación: {e}\n\n"
-                 "Comprueba que existe la colección de OpenAI (ejecuta "
-                 "`index_openai.py`) y que `OPENAI_API_KEY` está en el `.env`.",
+        st.error(f"Could not complete the comparison: {e}\n\n"
+                 "Check that the OpenAI collection exists (run "
+                 "`index_openai.py`) and that `OPENAI_API_KEY` is set in `.env`.",
                  icon=":material/error:")
     else:
         # Reutilizamos la recuperación que YA hizo el veredicto (no re-recuperamos).
@@ -355,8 +355,8 @@ else:
                     ans_izq = compare.answer_from_backend(pregunta, IZQ[1], IZQ[2])
                     ans_der = compare.answer_from_backend(pregunta, DER[1], DER[2])
             except Exception as e:
-                st.warning(f"No se pudieron redactar las respuestas: {e}. Se muestra "
-                           "solo la recuperación.", icon=":material/warning:")
+                st.warning(f"Could not draft the answers: {e}. Showing retrieval only.",
+                           icon=":material/warning:")
 
         c_izq, c_der = st.columns(2, gap="large")
         with c_izq:
@@ -365,19 +365,19 @@ else:
             _render_columna(DER[0], DER[3], "cen", res_der, ans_der)
 
         nota_redaccion = (
-            "Arriba de cada columna ves la <b>respuesta que redactaría el MISMO LLM "
-            "local</b> con la evidencia de cada modelo: como el redactor es idéntico, "
-            "cualquier diferencia entre las dos respuestas viene del <b>embedding</b>. "
+            "At the top of each column is the <b>answer the SAME local LLM would write</b> "
+            "from each model's evidence: since the writer is identical, any difference "
+            "between the two answers comes from the <b>embedding</b>. "
             if redactar else
-            "Activa <b>«Redactar también la respuesta de cada modelo»</b> para ver, "
-            "además del ranking, la respuesta que produciría cada uno. "
+            "Turn on <b>«Also draft each model's answer»</b> to see, alongside the "
+            "ranking, the answer each one would produce. "
         )
         st.markdown(
-            f'<div class="cmp-note">{nota_redaccion}Los <b>% de afinidad no son '
-            'comparables entre columnas</b>: MedCPT usa producto escalar (~55-75) y '
-            'OpenAI coseno (0-1), escalas distintas. Lo que sí se compara de forma '
-            'justa es el <b>orden</b> (qué pone cada modelo arriba) y cuántos '
-            'documentos son del fármaco correcto.</div>',
+            f'<div class="cmp-note">{nota_redaccion}The <b>affinity % are not '
+            'comparable across columns</b>: MedCPT uses inner product (~55-75) and '
+            'OpenAI cosine (0-1) — different scales. What IS fairly comparable '
+            'is the <b>ranking</b> (what each model puts on top) and how many '
+            'documents come from the correct drug.</div>',
             unsafe_allow_html=True,
         )
 
@@ -390,25 +390,25 @@ else:
 # etiquetado a mano (triplet accuracy + AUC por nivel). Es la capa "dura" del
 # experimento: verdad = biología humana, no el juicio del agente.
 st.divider()
-with st.expander("📊 Benchmark agregado de comprensión semántica (triplet accuracy + AUC)",
+with st.expander("📊 Aggregate semantic-understanding benchmark (triplet accuracy + AUC)",
                  expanded=False):
     _bench_csv = config.DATA_DIR / "semantics_summary.csv"
     if not _bench_csv.exists():
-        st.info("Aún no hay benchmark. Ejecútalo una vez con "
+        st.info("No benchmark yet. Run it once with "
                 "`./.venv/Scripts/python.exe evaluate_embeddings_semantics.py` "
-                "para generar `data/semantics_summary.csv`.",
+                "to generate `data/semantics_summary.csv`.",
                 icon=":material/info:")
     else:
         try:
             import pandas as pd
             _df = pd.read_csv(_bench_csv)
-            st.caption("Dos zonas de rigor: aquí, evidencia AGREGADA sobre un set "
-                       "etiquetado a mano; arriba, el veredicto EN VIVO por pregunta. "
-                       "El nivel **Mecanismo→fármaco** es donde un embedding biomédico "
-                       "debería destacar.")
+            st.caption("Two layers of rigour: here, AGGREGATE evidence over a "
+                       "hand-labelled set; above, the LIVE per-question verdict. The "
+                       "**Mechanism→drug** level is where a biomedical embedding "
+                       "should stand out.")
             st.dataframe(_df, width="stretch", hide_index=True)
-            st.caption("triplet_acc = % de tripletes con el positivo más cerca que el "
-                       "negativo (0.5 = azar). AUC = margen/limpieza de la separación "
-                       "(1.0 = separa perfecto).")
+            st.caption("triplet_acc = % of triplets where the positive is closer than "
+                       "the negative (0.5 = chance). AUC = margin/cleanliness of the "
+                       "separation (1.0 = perfect).")
         except Exception as e:
-            st.warning(f"No pude leer el benchmark: {e}", icon=":material/warning:")
+            st.warning(f"Could not read the benchmark: {e}", icon=":material/warning:")

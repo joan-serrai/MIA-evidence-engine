@@ -67,17 +67,22 @@ def system_status(timeout=3):
 
 
 def fix_hints(status):
-    """(-> list[str]) Instrucciones accionables para lo que falte (o [] si todo OK)."""
+    """(-> list[str]) Instrucciones accionables para lo que falte (o [] si todo OK).
+
+    EN INGLÉS: este texto se pinta tal cual en la interfaz, que es monolingüe en
+    inglés desde el rediseño. Los comentarios del código siguen en español.
+    """
     hints = []
     if not status["ollama"]["up"]:
-        hints.append(f"Ollama no responde en {status['ollama']['host']}. "
-                     "Arráncalo con:  ollama serve")
+        hints.append(f"Ollama is not responding at {status['ollama']['host']}. "
+                     "Start it with:  ollama serve")
     else:
         faltan = [m for m, ok in status["models"].items() if not ok]
         for m in faltan:
-            hints.append(f"Falta el modelo biomédico. Descárgalo con:  ollama pull {m}")
+            hints.append(f"The biomedical model is missing. Download it with:  "
+                         f"ollama pull {m}")
     if not status["corpus"]["ok"]:
-        hints.append("El corpus vectorial está vacío. Indéxalo con:  "
+        hints.append("The vector corpus is empty. Index it with:  "
                      "python run_phase1.py")
     return hints
 

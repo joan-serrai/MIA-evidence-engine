@@ -256,10 +256,61 @@ def condense_question(question, history, max_turns=4):
     return question
 
 
-def _build_user_prompt(contexto, question):
-    """Solo datos en el USER (contexto + consulta). Las instrucciones van en el
-    system para que el modelo no las copie como respuesta."""
-    return f"CONTEXT:\n{contexto}\n\nINPUT: {question}"
+# Directiva de FORMATO que va al FINAL del mensaje de usuario, después del
+# contexto y la pregunta.
+#
+# ¿Por qué aquí y no en el system? Medido: con la instrucción de longitud dentro
+# del system (que ya es largo), OpenBioLLM 8B la ignoraba y despachaba la pregunta
+# en UNA frase. Los modelos pequeños atienden mucho más a lo último que leen, así
+# que la orden operativa va al final. Se mantiene CORTA y en imperativo para que
+# no la parrotee (y si la parrotea, `_looks_degenerate` lo caza y reintenta).
+#
+# Lo de "una afirmación por frase" no es estilo: es lo que permite a
+# src/citations.py colgar la cita correcta a cada afirmación. Si el modelo mete
+# tres hechos de tres papers en una frase, esa frase no se puede atribuir a una
+# sola fuente sin mentir.
+_TASK_DIRECTIVE = (
+    "TASK: Answer the QUESTION above using only the CONTEXT.\n"
+    "- Answer exactly what the QUESTION asks, in its first sentence.\n"
+    "- Write 5 to 9 sentences in three short paragraphs. Never answer in a "
+    "single sentence.\n"
+    "- Put ONE self-contained claim in each sentence, so each sentence traces to "
+    "one document. Never merge findings from different studies into one sentence.\n"
+    "- Name the specific items the CONTEXT gives — adverse events by name, "
+    "endpoints, numeric values, populations, timepoints. Never write a vague "
+    "summary such as 'adverse events occurred' or 'showed improvement'.\n"
+    "- Write the content directly, as a clinician would. NEVER use the phrases "
+    "'the key finding', 'the supporting evidence', 'the practical implication' "
+    "or 'the evidence does not settle' — do not narrate your own structure.\n"
+    "- End each sentence with its source, e.g. [Doc 2]."
+)
+
+# Cierre por intención: se pega al final del todo (lo último que lee el modelo)
+# para que la pregunta concreta gane a la inercia del corpus. Sin esto, medido:
+# a "most common adverse events of upadacitinib?" respondía sobre EFICACIA en
+# adolescentes, porque es lo que más abunda en los abstracts recuperados.
+_TASK_FOCUS = {
+    "safety": ("- FOCUS: list the adverse events BY NAME with their frequency and "
+               "severity, plus discontinuation rates and any serious safety signal."),
+    "efficacy": ("- FOCUS: lead with the efficacy outcome — named endpoint, value, "
+                 "timepoint and population."),
+    "comparative": ("- FOCUS: make the comparison the QUESTION asks for; if the "
+                    "figures come from separate studies, say it is indirect."),
+    "mechanism": ("- FOCUS: explain the mechanism of action and the drug target, "
+                  "defining the biomedical terms you use."),
+}
+
+
+def _build_user_prompt(contexto, question, intent=None):
+    """Contexto + consulta + directiva de formato + foco de la intención, en ese
+    orden (lo más operativo, al final).
+
+    Las reglas de SEGURIDAD (no salir del contexto, no alucinar) siguen en el
+    system; aquí solo va el CÓMO presentar la respuesta.
+    """
+    foco = _TASK_FOCUS.get(intent or "", "")
+    directiva = f"{_TASK_DIRECTIVE}\n{foco}" if foco else _TASK_DIRECTIVE
+    return f"CONTEXT:\n{contexto}\n\nQUESTION: {question}\n\n{directiva}"
 
 
 # Cita real: acepta [Doc 1], [Doc1], rangos [Doc 1-3] y AGRUPADAS [Doc 1, Doc 2, 3].
@@ -282,6 +333,9 @@ _INSTRUCTION_MARKERS = (
     # frases distintivas del prompt "analista" (si aparecen, está parroteando):
     "decision-oriented answer", "state the key finding first",
     "do not go beyond the context",
+    # frases de la directiva de formato del mensaje de usuario (_TASK_DIRECTIVE):
+    "three short paragraphs", "one self-contained claim",
+    "do not answer in a single sentence", "task: answer the question",
 )
 
 
@@ -310,6 +364,41 @@ def _looks_degenerate(text):
     return False
 
 
+# Mínimo de frases para considerar la respuesta "desarrollada". Pedimos 5-9 en
+# la directiva; aceptamos 4 como suficiente (el 8B rara vez pasa de 6) y por
+# debajo reintentamos. Es un umbral de CALIDAD, no de seguridad: si no se
+# alcanza nunca, se devuelve igualmente la mejor respuesta obtenida.
+_MIN_SENTENCES = 4
+_SENTENCE_RE = re.compile(r"[.!?](?:\s|$)")
+
+# Muletillas de "meta-discurso": el modelo se refiere al andamiaje del prompt
+# ("based on the provided CONTEXT", "according to the documents"...). El system
+# ya lo prohíbe, pero se le escapa; lo limpiamos de forma determinista para que
+# la respuesta se lea como la escribiría un clínico.
+_CONTEXT_TALK_RE = re.compile(
+    r",?\s*(?:as\s+)?(?:based\s+on|according\s+to|from|per)\s+the\s+"
+    r"(?:provided\s+|given\s+|above\s+)?"
+    r"(?:context|documents?|evidence\s+provided|provided\s+evidence)\b,?",
+    re.IGNORECASE,
+)
+
+
+def _count_sentences(text):
+    """Nº aproximado de frases (para el umbral de 'respuesta desarrollada')."""
+    return len([s for s in _SENTENCE_RE.split(text or "") if s.strip()])
+
+
+def _strip_context_talk(text):
+    """Quita las referencias al andamiaje del prompt ('based on the provided
+    CONTEXT'), dejando la frase legible."""
+    if not text:
+        return text
+    limpio = _CONTEXT_TALK_RE.sub("", text)
+    limpio = re.sub(r"\s{2,}", " ", limpio)      # dobles espacios que deja el borrado
+    limpio = re.sub(r"\s+([,.;:])", r"\1", limpio)  # espacio antes de puntuación
+    return limpio.strip()
+
+
 def _build_system_prompt(intent):
     """Núcleo invariante (_ANSWER_SYSTEM) + modificador de énfasis de la intención.
 
@@ -335,8 +424,15 @@ def _generate_answer(contexto, question, retries=3, intent=None):
     """
     intent = intent or detect_intent(question)
     system_prompt = _build_system_prompt(intent)
-    temps = [0.0, 0.3, 0.5, 0.7]
-    user_prompt = _build_user_prompt(contexto, question)
+    # Escalada de temperatura CONTENIDA (antes llegaba a 0.7). Ahora los
+    # reintentos se disparan también por respuesta corta, no solo por
+    # degeneración, así que se usan mucho más a menudo: con 0.7 la respuesta
+    # devuelta sería casi siempre la más creativa, y en un sistema
+    # anti-alucinación eso es un mal negocio. 0.5 como techo da margen para
+    # escapar de un bucle degenerado sin premiar la deriva.
+    temps = [0.0, 0.2, 0.35, 0.5]
+    user_prompt = _build_user_prompt(contexto, question, intent)
+    mejor_corta = None   # mejor respuesta VÁLIDA pero corta, por si ninguna cumple
     for intento in range(retries + 1):
         temp = temps[intento] if intento < len(temps) else temps[-1]
         resp = ollama.chat(
@@ -345,14 +441,27 @@ def _generate_answer(contexto, question, retries=3, intent=None):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            options={"temperature": temp, "num_ctx": 8192},
+            # num_predict = tope de tokens que puede GENERAR. Lo fijamos explícito
+            # (900 ≈ 3 párrafos holgados) para que una respuesta desarrollada nunca
+            # se corte a media frase, que dejaría una afirmación sin su cita.
+            options={"temperature": temp, "num_ctx": 8192, "num_predict": 900},
         )
         salida = (resp["message"]["content"] or "").strip()
         # El modelo a veces antepone una etiqueta ("OUTPUT:", "ANSWER:"); la quitamos.
         salida = re.sub(r"^\s*(output|answer)\s*:\s*", "", salida, flags=re.IGNORECASE).strip()
-        if not _looks_degenerate(salida):
+        salida = _strip_context_talk(salida)
+        if _looks_degenerate(salida):
+            continue
+        # Válida, pero ¿desarrollada? Pedimos 5-9 frases y el 8B tiende a
+        # despachar en 1-3. Si se queda corta NO la tiramos: la guardamos y
+        # reintentamos con más temperatura, que suele soltarle la lengua. Al
+        # final devolvemos la más desarrollada que hayamos conseguido — nunca
+        # perdemos una respuesta correcta por no cumplir un mínimo de estilo.
+        if _count_sentences(salida) >= _MIN_SENTENCES:
             return salida
-    return None  # todas las tentativas degeneraron
+        if mejor_corta is None or len(salida) > len(mejor_corta):
+            mejor_corta = salida
+    return mejor_corta  # None solo si TODAS degeneraron
 
 
 # --------------------------------------------------------------------------
@@ -541,15 +650,23 @@ def _build_context(fragmentos):
     presupuesto = config.MAX_CONTEXT_CHARS  # tope de chars para todo el contexto
     for i, doc in enumerate(documentos, start=1):
         meta = doc["metadata"]
-        # Unimos los chunks del documento en orden de lectura (por chunk_index)
-        # para dar al modelo el contexto completo de ese artículo bajo un solo [Doc N].
-        trozos = [t for _, t in sorted(doc["chunks"], key=lambda c: c[0])]
-        texto_doc = " ".join(trozos)
 
-        # Cifras numéricas (EASI, IGA...) extraídas VERBATIM del artículo COMPLETO
-        # (todos sus chunks, no solo los recuperados), etiquetadas con este [Doc i]
-        # → alimentan el gráfico de la UI. Determinista: no lo genera el LLM.
-        outcomes_doc = outcomes.extract_outcomes(_full_doc_text(meta.get("doc_id")), i)
+        # Texto del ARTÍCULO COMPLETO, no solo de los chunks que casaron con la
+        # pregunta. Por qué: Chroma devuelve el chunk más parecido, pero un abstract
+        # troceado en 3 puede tener el resultado en el chunk 0 y los efectos adversos
+        # en el chunk 2. Si al modelo solo le damos el chunk recuperado, responde con
+        # un tercio del paper — y de ahí salían respuestas de una sola frase.
+        # Es el MISMO artículo que citamos como [Doc N], así que la trazabilidad no
+        # cambia. Si el documento no se puede leer entero, caemos a los chunks
+        # recuperados (comportamiento anterior).
+        texto_completo = _full_doc_text(meta.get("doc_id"))
+        trozos = [t for _, t in sorted(doc["chunks"], key=lambda c: c[0])]
+        texto_doc = texto_completo or " ".join(trozos)
+
+        # Cifras numéricas (EASI, IGA, eventos adversos...) extraídas VERBATIM del
+        # artículo completo, etiquetadas con este [Doc i] → alimentan el gráfico y la
+        # tabla de "Key figures". Determinista: no lo genera el LLM.
+        outcomes_doc = outcomes.extract_outcomes(texto_doc, i)
 
         # Respetar la ventana del LLM (num_ctx): si nos pasamos del presupuesto,
         # recortamos el texto de esta fuente (mejor una cita algo corta que
@@ -610,12 +727,11 @@ def _append_access_notice(answer_text, fuentes):
     if not restringidas:
         return answer_text
     refs = ", ".join(f"[Doc {f['n']}]" for f in restringidas)
-    verbo = "es" if len(restringidas) == 1 else "son"
+    verbo = "is" if len(restringidas) == 1 else "are"
     aviso = (
-        f"\n\n⚠ Nota de acceso: {refs} {verbo} de acceso restringido — MIA solo "
-        "dispone del RESUMEN; el texto completo podría estar de pago y contener "
-        "datos adicionales (cifras, métodos). Conviene consultar la fuente "
-        "original para el detalle completo."
+        f"\n\n⚠ Access note: {refs} {verbo} restricted access — MIA only has the "
+        "ABSTRACT; the full text may be paywalled and contain additional data "
+        "(figures, methods). Consult the original source for the full detail."
     )
     return answer_text + aviso
 
@@ -665,9 +781,9 @@ def answer(question, top_k=None, history=None):
     # Aquí es donde en la FASE 3 entrará el agente Scout a buscar fuera.
     if not has_evidence:
         return {
-            "answer": ("No encuentro evidencia local suficiente para responder "
-                       "a esta pregunta. (En la Fase 3, el agente Scout saldrá a "
-                       "buscarla en PubMed/ClinicalTrials.)"),
+            "answer": ("I cannot find enough local evidence to answer this "
+                       "question. Enable the Scout agent to search PubMed and "
+                       "ClinicalTrials.gov for it."),
             "sources": fuentes,
             "has_evidence": False,
             "intent": intent,
@@ -679,9 +795,9 @@ def answer(question, top_k=None, history=None):
     salida = _generate_answer(contexto, pregunta, intent=intent)
     if salida is None:
         # Tras los reintentos seguía degenerando: mensaje claro, NO basura.
-        salida = ("No he podido generar una respuesta fiable a partir de la "
-                  "evidencia recuperada. Prueba a reformular (mejor como "
-                  "pregunta que como afirmación) e inténtalo de nuevo.")
+        salida = ("I could not produce a reliable answer from the retrieved "
+                  "evidence. Try rephrasing it — as a question rather than a "
+                  "statement — and ask again.")
     else:
         # El modelo 8B suele AMONTONAR las citas al final; las repartimos a la
         # frase que cada una respalda (post-proceso determinista y conservador).

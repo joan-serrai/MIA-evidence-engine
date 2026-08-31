@@ -16,6 +16,26 @@ Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a va
 
 ## ✅ Cerrado en esta sesión (31-ago-2026)
 
+- **Rediseño de la respuesta y del informe** (a partir de un informe real que salió mal):
+  - [✅] **BUG GRAVE de trazabilidad**: si la respuesta no traía citas, `report.py` y
+        `streamlit_app.py` ASUMÍAN que la primera fuente estaba citada. Medido: una
+        respuesta sobre nasofaringitis se atribuyó a un meta-análisis que no menciona
+        esa palabra. Eliminado en los dos sitios; ahora sin citas se dice claramente.
+  - [✅] **Citas agrupadas** (`[Doc 1, Doc 2, Doc 3]`) sobrevivían al post-proceso: el
+        regex de limpieza exigía `]` tras el número. Ahora se limpian y se reparten.
+  - [✅] **Reparto de citas por IDF**: contar términos compartidos fallaba cuando los 5
+        papers hablaban del mismo fármaco (empate → ninguna cita). Ahora cada término
+        pesa por lo raro que es entre los candidatos.
+  - [✅] **Respuestas más largas**: el contexto usaba solo los chunks recuperados (un
+        tercio del abstract). Ahora va el documento completo + directiva de formato al
+        final del mensaje de usuario + reintento por longitud que conserva la mejor.
+  - [✅] **Cifras de seguridad**: `outcomes.py` no tenía ni un patrón de eventos
+        adversos, así que toda pregunta de seguridad daba la tabla vacía. Añadidos, con
+        etiqueta `kind` para no mezclar eficacia y seguridad en el mismo gráfico.
+  - [✅] **Interfaz e informe monolingües en inglés** (los comentarios siguen en español).
+  - [✅] **Orden de lectura**: respuesta + fuentes citadas + cifras arriba; confianza y
+        papers no usados, plegados en un único "Retrieval details".
+
 - **Versiones de dependencias fijadas.** `requirements.txt` pasa de `>=` a `==` (directas,
   comentadas) y se añade `requirements.lock.txt` con el árbol completo. Motivo: al montar el
   proyecto en el equipo nuevo, `>=` trajo saltos de versión MAYOR (transformers 4→5,

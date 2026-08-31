@@ -221,6 +221,18 @@ st.markdown(
         font-size: .78rem; font-weight: 600; color: var(--mia-ink);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
+      /* Sub-cabecera por TIPO de cifra. Separar eficacia de seguridad no es
+         cosmético: un EASI-75 alto es bueno y una tasa de evento adverso alta es
+         mala; sin la etiqueta, dos barras iguales se leen igual. El color refuerza
+         la lectura (salvia = eficacia, ámbar = seguridad). */
+      .oc-kind {
+        font-family: var(--mia-mono); font-size: .63rem; font-weight: 700;
+        letter-spacing: .09em; text-transform: uppercase;
+        margin: 9px 0 2px;
+      }
+      .oc-kind-efficacy { color: var(--mia-teal); }
+      .oc-kind-safety   { color: var(--mia-amber); }
+      .oc-kind-safety ~ .oc-row .oc-track > i { background: var(--mia-amber); opacity: .75; }
 
       /* --- Paneles de estado (Scout / sin evidencia) --- */
       .mia-panel {
@@ -326,12 +338,12 @@ st.markdown(
     f"""
     <div class="mia-hero">
       <h1>{_icon("dna")}MIA — Medical Intelligence Agent</h1>
-      <div class="tag">Evidencia biomédica <b>100% local y soberana</b> — tus datos
-        nunca salen de este ordenador · {html.escape(config.DISEASE)}</div>
+      <div class="tag">Biomedical evidence, <b>100% local and sovereign</b> — your data
+        never leaves this computer · {html.escape(config.DISEASE)}</div>
       <div class="mia-badges">
-        <span>{_icon("lock")}100% local · sin nube</span>
-        <span>{_icon("cite")}Cada cifra rastreable al abstract</span>
-        <span>{_icon("shield")}Sin evidencia, no responde</span>
+        <span>{_icon("lock")}100% local · no cloud</span>
+        <span>{_icon("cite")}Every figure traceable to its abstract</span>
+        <span>{_icon("shield")}No evidence, no answer</span>
       </div>
     </div>
     """,
@@ -345,18 +357,18 @@ st.markdown(
 st.markdown(
     f"""
     <div class="mia-how">
-      <div class="step"><div class="s-n">01 · RECUPERA</div>
-        <div class="s-t">Búsqueda biomédica local</div>
-        <div class="s-d">MedCPT (embeddings de NCBI) encuentra la evidencia en tu
-          corpus, sin llamar a ninguna API externa.</div></div>
-      <div class="step"><div class="s-n">02 · CITA</div>
-        <div class="s-t">Cada afirmación, a su fuente</div>
-        <div class="s-d">El modelo local responde y las citas [Doc N] se colocan de
-          forma determinista: cada cifra es rastreable a su abstract.</div></div>
-      <div class="step"><div class="s-n">03 · AMPLÍA</div>
-        <div class="s-t">Agente Scout si falta evidencia</div>
-        <div class="s-d">Si el corpus local no basta, sale a PubMed/ClinicalTrials,
-          importa la evidencia y reintenta — nunca inventa.</div></div>
+      <div class="step"><div class="s-n">01 · RETRIEVE</div>
+        <div class="s-t">Local biomedical search</div>
+        <div class="s-d">MedCPT (NCBI embeddings) finds the evidence in your own
+          corpus, without calling any external API.</div></div>
+      <div class="step"><div class="s-n">02 · CITE</div>
+        <div class="s-t">Every claim to its source</div>
+        <div class="s-d">The local model answers and the [Doc N] citations are placed
+          deterministically: every figure is traceable to its abstract.</div></div>
+      <div class="step"><div class="s-n">03 · EXTEND</div>
+        <div class="s-t">Scout agent when evidence is missing</div>
+        <div class="s-d">If the local corpus is not enough, it queries PubMed and
+          ClinicalTrials, imports the evidence and retries — it never invents.</div></div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -378,7 +390,7 @@ _status = _cached_status()
 if not _status["ready"]:
     _hints = status.fix_hints(_status)
     st.error(
-        "**MIA no está listo todavía.** Falta poner en marcha algo antes de preguntar:\n\n"
+        "**MIA is not ready yet.** Something needs starting before you can ask:\n\n"
         + "\n".join(f"- {h}" for h in _hints),
         icon=":material/build:",
     )
@@ -388,51 +400,51 @@ if not _status["ready"]:
 # 2) Barra lateral: información y ajustes
 # ==========================================================================
 with st.sidebar:
-    st.header(":material/settings: Ajustes")
+    st.header(":material/settings: Settings")
     usar_scout = st.toggle(
-        "Agente Scout",
+        "Scout agent",
         value=True,
-        help="Si no hay evidencia local suficiente, sale a buscarla a "
-             "PubMed/ClinicalTrials, la importa y reintenta.",
+        help="If there is not enough local evidence, it searches PubMed and "
+             "ClinicalTrials, imports the results and retries.",
     )
     st.divider()
-    st.subheader(":material/smart_toy: Modelos (locales)")
-    st.caption(f":material/neurology: Biomédico: `{config.LLM_MODEL}`")
+    st.subheader(":material/smart_toy: Models (local)")
+    st.caption(f":material/neurology: Biomedical: `{config.LLM_MODEL}`")
     # Mostramos el embedding REALMENTE activo (según EMBEDDING_BACKEND), no una
     # constante fija: si estamos en MedCPT, decir 'bge' sería engañoso.
     if getattr(config, "EMBEDDING_BACKEND", "") == "medcpt":
-        _emb_label = "MedCPT (NCBI) · biomédico, 2 torres"
+        _emb_label = "MedCPT (NCBI) · biomedical, 2 towers"
     else:
         _emb_label = config.EMBEDDING_MODEL
     st.caption(f":material/tag: Embeddings: `{_emb_label}`")
     st.divider()
-    st.caption(f":material/coronavirus: Enfermedad: **{config.DISEASE}**")
-    st.caption(f":material/tune: Umbral de evidencia: {config.SIMILARITY_THRESHOLD}")
+    st.caption(f":material/coronavirus: Disease: **{config.DISEASE}**")
+    st.caption(f":material/tune: Evidence threshold: {config.SIMILARITY_THRESHOLD}")
 
     # --- Estado del sistema: semáforos reales (Ollama / modelo / corpus) ---
     st.divider()
-    st.subheader(":material/monitor_heart: Estado del sistema")
+    st.subheader(":material/monitor_heart: System status")
     _s = _cached_status()
     _ollama_ok = _s["ollama"]["up"]
     _modelo_ok = all(_s["models"].values())
     _corpus = _s["corpus"]
     st.markdown(
         f"- {'🟢' if _ollama_ok else '🔴'} **Ollama** "
-        f"{'en marcha' if _ollama_ok else 'no responde'}\n"
-        f"- {'🟢' if _modelo_ok else '🔴'} **Modelo biomédico** "
-        f"{'descargado' if _modelo_ok else 'no encontrado'}\n"
+        f"{'running' if _ollama_ok else 'not responding'}\n"
+        f"- {'🟢' if _modelo_ok else '🔴'} **Biomedical model** "
+        f"{'downloaded' if _modelo_ok else 'not found'}\n"
         f"- {'🟢' if _corpus['ok'] else '🔴'} **Corpus** "
-        f"{_corpus['chunks']:,} fragmentos".replace(",", ".")
+        f"{_corpus['chunks']:,} chunks"
     )
     if not _s["ready"]:
-        st.caption("⚠️ Revisa el aviso de arriba para ponerlo en marcha.")
+        st.caption("⚠️ See the notice above to get it running.")
 
-    st.info("Por ahora hay que **preguntar en inglés** (el modelo biomédico "
-            "es fiable solo en inglés).", icon=":material/translate:")
+    st.info("Questions must be asked **in English** (the biomedical model is only "
+            "reliable in English).", icon=":material/translate:")
 
     if st.session_state.get("messages"):
         st.divider()
-        if st.button("Borrar conversación", icon=":material/delete:",
+        if st.button("Clear conversation", icon=":material/delete:",
                      width="stretch"):
             st.session_state.messages = []
             st.rerun()
@@ -498,8 +510,11 @@ def _render_sources(sources):
     """Pinta la lista de fuentes citadas como tarjetas dentro de un desplegable."""
     if not sources:
         return
-    with st.expander(f"Fuentes citadas ({len(sources)})",
-                     icon=":material/menu_book:", expanded=False):
+    # EXPANDIDO por defecto: son los papers en los que se apoya la respuesta, así
+    # que forman parte de la respuesta, no del aparato de diagnóstico. Lo que se
+    # pliega ahora es el ruido de recuperación (ver _render_retrieval_details).
+    with st.expander(f"Cited sources ({len(sources)})",
+                     icon=":material/menu_book:", expanded=True):
         for f in sources:
             sim = float(f.get("similarity", 0) or 0)
             pct = _confidence_pct(sim)
@@ -508,9 +523,9 @@ def _render_sources(sources):
             # 'n_fragments' = cuántos chunks de ESTE artículo coincidieron y se
             # unieron bajo un solo [Doc N] (citas deduplicadas por PMID/NCT).
             n_frag = f.get("n_fragments", 1)
-            frag_txt = f"{n_frag} fragmento" + ("s" if n_frag != 1 else "")
+            frag_txt = f"{n_frag} chunk" + ("s" if n_frag != 1 else "")
 
-            title = html.escape(f.get("title") or "(sin título)")
+            title = html.escape(f.get("title") or "(untitled)")
             id_lbl = html.escape(_id_label(f.get("source"), f.get("doc_id")))
             src_lbl = html.escape(_source_type_label(f.get("source")))
             url = html.escape(f.get("url") or "#")
@@ -535,14 +550,14 @@ def _render_sources(sources):
                   <div class="src-head">
                     <span class="src-doc">Doc {f['n']}</span>
                     <span class="src-type">{src_lbl}</span>
-                    <span class="src-sim" style="color:{color}">● {pct}% confianza</span>
+                    <span class="src-sim" style="color:{color}">● {pct}% match</span>
                   </div>
                   <div class="src-title">{title}</div>
                   <div class="src-bar"><i style="width:{pct}%;background:{color}"></i></div>
                   {snippet_html}
                   {drugs_html}
                   <div class="src-meta">{id_lbl} · {frag_txt}</div>
-                  <a class="src-link" href="{url}" target="_blank">Ver fuente ↗</a>
+                  <a class="src-link" href="{url}" target="_blank">Open source ↗</a>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -550,38 +565,40 @@ def _render_sources(sources):
 
 
 def _render_other_sources(sources):
-    """Fuentes recuperadas por afinidad que la respuesta NO citó. Se muestran en un
-    desplegable aparte y CADA UNA con su motivo (transparencia): así el usuario ve
-    por qué aparecieron sin confundirlas con las fuentes en las que MIA se apoyó."""
+    """Fuentes recuperadas por afinidad que la respuesta NO citó, cada una con su
+    motivo (transparencia): el usuario ve por qué aparecieron sin confundirlas con
+    las fuentes en las que MIA se apoyó.
+
+    Ya NO abre su propio desplegable: se pinta DENTRO de "Retrieval details", el
+    único sitio donde se agrupa lo que no es la respuesta.
+    """
     if not sources:
         return
-    with st.expander(f"También recuperadas · no citadas ({len(sources)})",
-                     icon=":material/inventory_2:", expanded=False):
-        st.caption("MIA recuperó estas fuentes por su afinidad con la pregunta, pero "
-                   "la respuesta no se apoyó en ellas. Se listan con el motivo por "
-                   "transparencia (no cuentan como fuentes citadas).")
-        for f in sources:
-            title = html.escape(f.get("title") or "(sin título)")
-            id_lbl = html.escape(_id_label(f.get("source"), f.get("doc_id")))
-            src_lbl = html.escape(_source_type_label(f.get("source")))
-            url = html.escape(f.get("url") or "#")
-            pct = _confidence_pct(float(f.get("similarity", 0) or 0))
-            st.markdown(
-                f"""
-                <div class="src-card">
-                  <div class="src-head">
-                    <span class="src-doc">Doc {f['n']}</span>
-                    <span class="src-type">{src_lbl}</span>
-                    <span class="src-sim" style="color:var(--mia-slate)">● {pct}% afinidad</span>
-                  </div>
-                  <div class="src-title">{title}</div>
-                  <div class="src-reason">{_relevance_reason(f)}</div>
-                  <div class="src-meta">{id_lbl}</div>
-                  <a class="src-link" href="{url}" target="_blank">Ver fuente ↗</a>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    st.caption("MIA retrieved these for their affinity with the question, but the "
+               "answer did not rely on them. They are listed with the reason, for "
+               "transparency (they do not count as cited sources).")
+    for f in sources:
+        title = html.escape(f.get("title") or "(untitled)")
+        id_lbl = html.escape(_id_label(f.get("source"), f.get("doc_id")))
+        src_lbl = html.escape(_source_type_label(f.get("source")))
+        url = html.escape(f.get("url") or "#")
+        pct = _confidence_pct(float(f.get("similarity", 0) or 0))
+        st.markdown(
+            f"""
+            <div class="src-card">
+              <div class="src-head">
+                <span class="src-doc">Doc {f['n']}</span>
+                <span class="src-type">{src_lbl}</span>
+                <span class="src-sim" style="color:var(--mia-slate)">● {pct}% affinity</span>
+              </div>
+              <div class="src-title">{title}</div>
+              <div class="src-reason">{_relevance_reason(f)}</div>
+              <div class="src-meta">{id_lbl}</div>
+              <a class="src-link" href="{url}" target="_blank">Open source ↗</a>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def _split_cited(data):
@@ -590,14 +607,16 @@ def _split_cited(data):
     los KPIs hablan solo de los papers en los que la respuesta se apoya, y el resto
     (recuperados por afinidad pero no citados) se muestran aparte, con su motivo.
 
-    Si la respuesta no trae ninguna cita válida, tratamos la mejor fuente como
-    citada (para no ocultarlo todo) y el resto como recuperadas.
+    OJO — aquí había un bug grave, el mismo que en src/report.py: si la respuesta
+    no traía ninguna cita, se ASUMÍA que la mejor fuente estaba citada. Medido en
+    un caso real: la respuesta hablaba de nasofaringitis y la UI se la atribuyó a
+    un meta-análisis que no menciona esa palabra en todo el abstract. Eso es
+    exactamente lo contrario de lo que promete MIA. Ahora: sin citas, no hay
+    fuentes citadas, y la UI lo dice.
     """
     sources = data.get("sources") or []
     texto = data.get("answer") or data.get("content") or ""
     cited_n = citations.cited_docs(texto, len(sources))
-    if not cited_n and sources:
-        cited_n = {sources[0].get("n")}
     citadas = [s for s in sources if s.get("n") in cited_n]
     otras = [s for s in sources if s.get("n") not in cited_n]
     return citadas, otras
@@ -610,14 +629,14 @@ def _relevance_reason(f):
     partes = []
     drugs = [d.strip() for d in (f.get("drugs") or "").split(";") if d.strip()][:3]
     if drugs:
-        partes.append("trata <b>" + html.escape(", ".join(drugs)) + "</b>")
-    mets = sorted({str(o.get("metric", "")).split()[0]
-                   for o in (f.get("outcomes") or []) if o.get("metric")})
+        partes.append("covers <b>" + html.escape(", ".join(drugs)) + "</b>")
+    mets = sorted({str(o.get("metric", "")) for o in (f.get("outcomes") or [])
+                   if o.get("metric")})
     if mets:
-        partes.append("aporta cifras <b>" + html.escape(", ".join(mets[:3])) + "</b>")
+        partes.append("reports <b>" + html.escape(", ".join(mets[:3])) + "</b>")
     detalle = ("; ".join(partes) + ". " if partes else "")
-    return (f"{detalle}Se recuperó por afinidad temática con la pregunta, pero la "
-            "respuesta no se apoyó en ella.")
+    return (f"{detalle}Retrieved for topical affinity with the question, but the "
+            "answer did not rely on it.")
 
 
 def _render_data_cards(result, cited):
@@ -647,12 +666,12 @@ def _render_data_cards(result, cited):
 
     cards = [
         f'<div class="mia-kpi"><div class="k-num">{n_fuentes}</div>'
-        f'<div class="k-lbl">Fuentes citadas</div></div>',
-        f'<div class="mia-kpi" title="Confianza de recuperación calibrada 0-100% '
-        f'a partir de la afinidad MedCPT (umbral de evidencia ≈ 44%). No es una '
-        f'probabilidad de veracidad."><div class="k-num">'
+        f'<div class="k-lbl">Cited sources</div></div>',
+        f'<div class="mia-kpi" title="Retrieval confidence, calibrated 0-100% from '
+        f'the MedCPT affinity (evidence threshold ~44%). It is not a probability '
+        f'that the answer is true."><div class="k-num">'
         f'<span class="k-dot" style="background:{dot}"></span>{pct}%</div>'
-        f'<div class="k-lbl">Confianza recup.</div></div>',
+        f'<div class="k-lbl">Retrieval conf.</div></div>',
         f'<div class="mia-kpi"><div class="k-num">{n_pm} / {n_ct}</div>'
         f'<div class="k-lbl">PubMed / CT</div></div>',
     ]
@@ -663,7 +682,7 @@ def _render_data_cards(result, cited):
         if new_chunks > 0:
             cards.append(
                 f'<div class="mia-kpi k-scout"><div class="k-num">{new_chunks}</div>'
-                f'<div class="k-lbl">Chunks nuevos</div></div>'
+                f'<div class="k-lbl">New chunks</div></div>'
             )
 
     st.markdown(f'<div class="mia-kpis">{"".join(cards)}</div>',
@@ -680,46 +699,60 @@ def _render_outcomes_chart(sources):
     (si son del mismo paper, no hace falta re-citarlo). `sources` debe venir ya
     filtrada a las fuentes realmente CITADAS por la respuesta.
     """
-    # (fuente, sus cifras ordenadas de mayor a menor) — solo papers con cifras.
-    grupos = [
-        (f, sorted((f.get("outcomes") or []), key=lambda p: p.get("value", 0), reverse=True))
-        for f in (sources or [])
-    ]
+    # (fuente, sus cifras) — solo papers con cifras.
+    grupos = [(f, list(f.get("outcomes") or [])) for f in (sources or [])]
     grupos = [(f, ocs) for f, ocs in grupos if ocs]
     if not grupos:
         return
 
-    max_val = max((oc.get("value", 0) for _, ocs in grupos for oc in ocs), default=100) or 100
+    # ESCALA POR TIPO, no global. Una tasa EASI-75 del 82% y una de
+    # nasofaringitis del 12% no comparten significado: normalizarlas contra el
+    # mismo máximo haría que el evento adverso pareciera insignificante (o al
+    # revés). Cada bloque se escala contra el máximo DE SU TIPO.
+    maximos = {}
+    for _, ocs in grupos:
+        for oc in ocs:
+            k = oc.get("kind", "efficacy")
+            maximos[k] = max(maximos.get(k, 0), float(oc.get("value", 0) or 0))
 
     bloques = []
     for f, ocs in grupos:
-        titulo = html.escape((f.get("title") or "(sin título)")[:80])
+        titulo = html.escape((f.get("title") or "(untitled)")[:80])
         cabecera = (
             f'<div class="oc-group">'
             f'<span class="oc-doc">Doc {int(f.get("n", 0))}</span>'
             f'<span class="oc-group-title">{titulo}</span></div>'
         )
-        filas = []
-        for p in ocs[:8]:  # tope por paper para no saturar la vista
-            val = float(p.get("value", 0) or 0)
-            wk = p.get("week")
-            etiqueta = html.escape(str(p.get("metric", "")))
-            sub = f"semana {html.escape(str(wk))}" if wk else ""
-            ancho = int(round(val / max_val * 100))
-            filas.append(
-                f'<div class="oc-row">'
-                f'<div class="oc-lbl">{etiqueta}<span class="oc-sub">{sub}</span></div>'
-                f'<div class="oc-track"><i style="width:{ancho}%"></i></div>'
-                f'<span class="oc-val">{val:g}%</span>'
-                f'</div>'
-            )
-        bloques.append(cabecera + "".join(filas))
+        cuerpo = ""
+        for kind, etiqueta_kind in (("efficacy", "Efficacy"), ("safety", "Safety")):
+            del_tipo = [o for o in ocs if o.get("kind", "efficacy") == kind]
+            if not del_tipo:
+                continue
+            del_tipo.sort(key=lambda p: p.get("value", 0), reverse=True)
+            tope = maximos.get(kind, 100) or 100
+            filas = []
+            for p in del_tipo[:8]:  # tope por paper y tipo para no saturar
+                val = float(p.get("value", 0) or 0)
+                wk = p.get("week")
+                etiqueta = html.escape(str(p.get("metric", "")))
+                sub = f"week {html.escape(str(wk))}" if wk else ""
+                ancho = int(round(val / tope * 100))
+                filas.append(
+                    f'<div class="oc-row">'
+                    f'<div class="oc-lbl">{etiqueta}<span class="oc-sub">{sub}</span></div>'
+                    f'<div class="oc-track"><i style="width:{ancho}%"></i></div>'
+                    f'<span class="oc-val">{val:g}%</span>'
+                    f'</div>'
+                )
+            cuerpo += (f'<div class="oc-kind oc-kind-{kind}">{etiqueta_kind}</div>'
+                       + "".join(filas))
+        bloques.append(cabecera + cuerpo)
 
     st.markdown(
         f'<div class="mia-chart">'
-        f'<div class="oc-head">{_icon("cite")} Datos clave de la evidencia'
-        f'<span class="oc-note">cifras citadas literalmente del abstract · '
-        f'no generadas por el modelo</span></div>'
+        f'<div class="oc-head">{_icon("cite")} Key figures from the evidence'
+        f'<span class="oc-note">quoted verbatim from the abstract · '
+        f'not generated by the model</span></div>'
         f'{"".join(bloques)}'
         f'</div>',
         unsafe_allow_html=True,
@@ -740,15 +773,15 @@ if "messages" not in st.session_state:
 # Estado vacío: bienvenida + galería de ejemplos clicables, agrupados por INTENCIÓN
 # (eficacia / seguridad / comparativa) → el usuario ve de un vistazo qué sabe hacer.
 EJEMPLOS_POR_INTENCION = [
-    ("Eficacia", ":material/trending_up:", [
+    ("Efficacy", ":material/trending_up:", [
         "Is lebrikizumab effective for atopic dermatitis?",
         "What is the efficacy of dupilumab in atopic dermatitis?",
     ]),
-    ("Seguridad", ":material/health_and_safety:", [
+    ("Safety", ":material/health_and_safety:", [
         "What are the most common adverse events of upadacitinib?",
         "Is baricitinib safe for long-term use in atopic dermatitis?",
     ]),
-    ("Comparativa", ":material/compare_arrows:", [
+    ("Comparison", ":material/compare_arrows:", [
         "How does dupilumab compare to tralokinumab in safety?",
         "Dupilumab vs upadacitinib efficacy in atopic dermatitis?",
     ]),
@@ -758,11 +791,11 @@ if not st.session_state.messages:
     st.markdown(
         """
         <div class="mia-welcome">
-          <h3>Bienvenido/a</h3>
-          <p>Pregunta sobre la evidencia de la dermatitis atópica y sus fármacos.
-             Todo se ejecuta <b>en local</b>: cada respuesta cita las fuentes exactas
-             que la respaldan y, si no hay evidencia suficiente, MIA lo dice en vez de
-             inventar. Prueba con un ejemplo:</p>
+          <h3>Welcome</h3>
+          <p>Ask about the evidence on atopic dermatitis and its drugs. Everything
+             runs <b>locally</b>: every answer cites the exact sources backing it, and
+             when the evidence is not enough MIA says so instead of inventing. Try an
+             example:</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -786,9 +819,9 @@ def _render_scout_panel(scout):
     st.markdown(
         f"""
         <div class="mia-panel mia-panel-scout">
-          <div class="p-head"><span class="p-dot"></span>{_icon("search")} Agente Scout activado</div>
-          No había evidencia local suficiente. Busqué «<b>{term}</b>» e importé
-          <b>{new_chunks}</b> fragmentos nuevos de PubMed/ClinicalTrials.
+          <div class="p-head"><span class="p-dot"></span>{_icon("search")} Scout agent activated</div>
+          There was not enough local evidence. I searched for «<b>{term}</b>» and
+          imported <b>{new_chunks}</b> new chunks from PubMed/ClinicalTrials.
         </div>
         """,
         unsafe_allow_html=True,
@@ -801,10 +834,10 @@ def _render_generation_error(exc):
     s = status.system_status()
     hints = status.fix_hints(s)
     if not hints:  # el sistema parece OK → error inesperado; damos la pista técnica
-        hints = [f"Error inesperado del modelo: `{type(exc).__name__}: {exc}`. "
-                 "Reintenta; si persiste, revisa que Ollama tenga memoria suficiente."]
+        hints = [f"Unexpected model error: `{type(exc).__name__}: {exc}`. "
+                 "Retry; if it persists, check that Ollama has enough memory."]
     st.error(
-        "**No he podido generar la respuesta.**\n\n" + "\n".join(f"- {h}" for h in hints),
+        "**I could not generate the answer.**\n\n" + "\n".join(f"- {h}" for h in hints),
         icon=":material/error:",
     )
 
@@ -814,7 +847,7 @@ def _render_no_evidence_panel(texto: str):
     st.markdown(
         f"""
         <div class="mia-panel mia-panel-empty">
-          <div class="p-head"><span class="p-dot"></span>Sin evidencia local</div>
+          <div class="p-head"><span class="p-dot"></span>No local evidence</div>
           {html.escape(texto)}
         </div>
         """,
@@ -836,7 +869,7 @@ def _render_assistant(data):
     # pregunta autónoma, lo decimos (transparencia: el usuario ve CÓMO se interpretó).
     condensed = data.get("condensed_question")
     if condensed:
-        st.caption(f":material/subdirectory_arrow_right: Interpreté tu pregunta como: "
+        st.caption(f":material/subdirectory_arrow_right: I read your question as: "
                    f"*{condensed}*")
 
     if has_evidence is False:
@@ -846,21 +879,55 @@ def _render_assistant(data):
             _render_scout_panel(data.get("scout"))
         return
 
-    # Separamos las fuentes CITADAS por la respuesta de las solo-recuperadas: el
-    # gráfico, los KPIs y las "fuentes citadas" hablan solo de las primeras; las
-    # segundas van en su propio bloque, cada una con su motivo.
+    # Separamos las fuentes CITADAS por la respuesta de las solo-recuperadas.
     citadas, otras = _split_cited(data)
 
+    # ORDEN DE LECTURA (rediseñado). Antes se mezclaban dos intenciones —
+    # responder a la pregunta y justificar cómo de seguro estaba el sistema— al
+    # mismo nivel visual, y resultaba confuso. Ahora:
+    #   ARRIBA  → lo que responde: respuesta citada, fuentes citadas, cifras clave.
+    #   PLEGADO → el aparato de recuperación: confianza, papers no usados.
+    # El aviso del Scout se queda arriba: no es diagnóstico, es algo que MIA HIZO
+    # y que cambia de dónde sale la respuesta.
     _render_answer(texto)
-    _render_outcomes_chart(citadas)   # cifras verbatim, agrupadas por paper citado
-    _render_data_cards(data, citadas) # KPIs sobre las fuentes realmente citadas
 
     if data.get("used_scout"):
         _render_scout_panel(data.get("scout"))
 
-    _render_sources(citadas)          # "Fuentes citadas" = solo las que cita el texto
-    _render_other_sources(otras)      # recuperadas-no-citadas, con su motivo
+    if citadas:
+        _render_sources(citadas)        # papers en los que se apoya (desplegado)
+        _render_outcomes_chart(citadas) # cifras verbatim de esos papers
+    else:
+        # Sin citas válidas no fingimos ninguna (ver _split_cited): lo decimos.
+        st.warning(
+            "No sentence in this answer could be confidently attributed to a single "
+            "retrieved paper, so MIA is not claiming any cited source. The retrieved "
+            "evidence is under **Retrieval details** below.",
+            icon=":material/link_off:",
+        )
+
+    _render_retrieval_details(data, citadas, otras)
     _render_export_button(data, texto, citadas)
+
+
+def _render_retrieval_details(data, citadas, otras):
+    """UN solo desplegable con todo lo que NO es la respuesta: los KPIs de
+    confianza y los papers recuperados que la respuesta no usó.
+
+    Está cerrado por defecto a propósito: quien quiera auditar lo abre, y quien
+    solo quiera la respuesta no lo ve. Es la separación que pedía el usuario
+    entre "contéstame" y "demuéstrame lo seguro que estás".
+    """
+    if not (citadas or otras):
+        return
+    n = len(otras)
+    etiqueta = ("Retrieval details" if not n
+                else f"Retrieval details · {n} more paper{'s' if n != 1 else ''} retrieved")
+    with st.expander(etiqueta, icon=":material/manage_search:", expanded=False):
+        _render_data_cards(data, citadas)
+        if otras:
+            st.markdown("")
+            _render_other_sources(otras)
 
 
 def _render_export_button(data, texto, citadas):
@@ -873,14 +940,14 @@ def _render_export_button(data, texto, citadas):
     # Clave estable entre reruns (hash del contenido) para que Streamlit no se queje.
     key = "dl_" + hashlib.md5((pregunta + texto).encode("utf-8")).hexdigest()[:10]
     st.download_button(
-        "Descargar informe (HTML → PDF)",
+        "Download report (HTML → PDF)",
         data=html_report,
-        file_name=f"MIA_informe_{datetime.now():%Y%m%d_%H%M}.html",
+        file_name=f"MIA_evidence_report_{datetime.now():%Y%m%d_%H%M}.html",
         mime="text/html",
         key=key,
         icon=":material/download:",
-        help="Documento con marca, con la pregunta, la respuesta citada y las fuentes. "
-             "Ábrelo y usa Ctrl+P → Guardar como PDF para compartirlo.",
+        help="A branded document with the question, the cited answer and the sources. "
+             "Open it and use Ctrl+P → Save as PDF to share it.",
     )
 
 
@@ -916,7 +983,7 @@ if pregunta:
     with st.chat_message("assistant"):
         resultado = None
         try:
-            with st.spinner("Buscando evidencia y razonando con el modelo local…"):
+            with st.spinner("Retrieving evidence and reasoning with the local model…"):
                 if usar_scout:
                     resultado = scout.answer_with_scout(pregunta, history=historial)
                 else:

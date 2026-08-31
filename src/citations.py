@@ -22,8 +22,18 @@ emparejamiento es claro, deja la respuesta original intacta.
 """
 
 import re
+import math
 
 _DOC_TAG_RE = re.compile(r"\s*\[doc\s*(\d+)\]", re.IGNORECASE)
+# Cita AGRUPADA que el modelo pone al final de una frase: "[Doc 1, Doc 2, Doc 3]",
+# "[Doc 1-3]", "[Doc 2, 4]". El patrón de arriba NO la reconoce (exige que el ']'
+# vaya justo tras el número), así que estas citas SOBREVIVÍAN al post-proceso:
+# medido en una respuesta real, una frase acabó con "[Doc 1, Doc 2, Doc 3, Doc 4,
+# Doc 5]" — exactamente el amontonamiento que este módulo existe para evitar, y
+# además una afirmación atribuida a CINCO papers a la vez, que no es trazable.
+# Se limpian antes de repartir, y el reparto pone la cita que de verdad toca.
+_DOC_GROUP_RE = re.compile(r"\s*\[doc\s*\d+(?:\s*[,;&-]\s*(?:doc\s*)?\d+)+\s*\]",
+                           re.IGNORECASE)
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 # Palabras vacías / demasiado genéricas para discriminar entre documentos.
@@ -40,7 +50,24 @@ _STOP = {
     "conclusion", "findings", "compared", "improvement", "improvements",
     "moderate", "severe", "atopic", "dermatitis", "disease",
 }
-_MIN_OVERLAP = 2   # nº mínimo de términos distintivos compartidos para asignar
+# ---------------------------------------------------------------------------
+# PESADO POR RAREZA (IDF). Antes contábamos términos compartidos "a pelo" y el
+# mejor tenía que superar ESTRICTAMENTE al segundo. Eso fallaba justo en el caso
+# más común de MIA: si preguntas por upadacitinib, los 5 papers recuperados
+# hablan de upadacitinib, así que ese término aparece en todos, no distingue
+# nada, y los empates bloqueaban TODAS las citas. Resultado real medido: una
+# respuesta sobre efectos adversos se quedó sin una sola cita.
+#
+# Arreglo: cada término vale según lo RARO que sea entre los documentos
+# candidatos. "upadacitinib" en 5 de 5 papers ≈ no aporta señal; "nasopharyngitis"
+# en 2 de 5 sí la aporta; un término único de un paper es señal fuerte.
+#
+#     idf(t) = log( (N + 1) / (df(t) + 0.5) )
+#
+# El +1/+0.5 son suavizados: evitan dividir por cero y que un término presente en
+# TODOS valga exactamente 0 (con N=5: df=5 → 0.09, df=2 → 0.88, df=1 → 1.39).
+_MIN_SCORE = 0.80   # puntuación mínima para asignar cita (≈ un término medianamente raro)
+_MARGIN = 1.20      # el mejor debe superar al segundo por este factor (evita citas dudosas)
 
 
 def _salient(text):
@@ -72,26 +99,42 @@ def redistribute_citations(answer, sources):
         return answer
 
     # Prosa limpia (quitamos las citas que hubiera puesto el modelo; las recolocamos
-    # nosotros por solapamiento) partida en frases.
-    limpio = _DOC_TAG_RE.sub("", answer).strip()
+    # nosotros por solapamiento) partida en frases. Las AGRUPADAS primero: si no,
+    # el patrón simple no las toca y se quedan en el texto final.
+    limpio = _DOC_GROUP_RE.sub("", answer)
+    limpio = _DOC_TAG_RE.sub("", limpio).strip()
     frases = [f for f in _SENT_SPLIT_RE.split(limpio) if f.strip()]
     if not frases:
         return answer
+
+    # Peso IDF de cada término: cuántos documentos lo contienen (df) → lo raro que
+    # es. Se calcula sobre ESTE conjunto de fuentes, así que se adapta solo: en una
+    # tanda donde todos los papers hablan del mismo fármaco, ese fármaco pesa casi
+    # nada y mandan los términos que de verdad diferencian (un evento adverso
+    # concreto, una población, un endpoint).
+    n_docs = len(terms)
+    df = {}
+    for t_set in terms.values():
+        for t in t_set:
+            df[t] = df.get(t, 0) + 1
+    idf = {t: math.log((n_docs + 1) / (d + 0.5)) for t, d in df.items()}
 
     usados = set()
     salida = []
     for frase in frases:
         f_terms = _salient(frase)
-        # Puntuamos cada doc citado por solapamiento de términos con la frase.
+        # Puntuamos cada documento por la SUMA de pesos de los términos que
+        # comparte con la frase (no por cuántos comparte).
         puntuados = sorted(
-            ((len(f_terms & terms[n]), n) for n in terms),
+            ((sum(idf.get(t, 0.0) for t in (f_terms & terms[n])), n) for n in terms),
             key=lambda x: x[0], reverse=True,
         )
         mejor, mejor_n = puntuados[0]
-        segundo = puntuados[1][0] if len(puntuados) > 1 else 0
-        # Asignamos solo si el mejor es suficientemente claro (supera el umbral y
-        # bate al segundo) → evita citas dudosas.
-        if mejor >= _MIN_OVERLAP and mejor > segundo:
+        segundo = puntuados[1][0] if len(puntuados) > 1 else 0.0
+        # Asignamos solo si el mejor pasa el umbral Y le saca margen al segundo.
+        # Seguimos siendo conservadores: sin un ganador claro, la frase se queda
+        # SIN cita (mejor sin cita que con una equivocada).
+        if mejor >= _MIN_SCORE and mejor >= segundo * _MARGIN:
             salida.append(f"{frase.rstrip()} [Doc {mejor_n}]")
             usados.add(mejor_n)
         else:
@@ -137,6 +180,16 @@ def strip_invalid_citations(text, n_sources):
     if not text:
         return text
 
+    def _normalizar_grupo(m):
+        """Convierte "[Doc 1, Doc 7, Doc 2]" en "[Doc 1] [Doc 2]" (descartando las
+        fuera de rango). Hay un camino —cuando `redistribute_citations` no encuentra
+        ningún emparejamiento claro y devuelve el texto tal cual del modelo— por el
+        que una cita agrupada llega hasta aquí. La dejamos en citas individuales
+        para que cada una apunte a UNA fuente real y comprobable."""
+        nums = [int(x) for x in re.findall(r"\d+", m.group(0))]
+        validos = sorted({n for n in nums if 1 <= n <= n_sources})
+        return (" " + " ".join(f"[Doc {n}]" for n in validos)) if validos else ""
+
     def _sustituir(m):
         try:
             n = int(m.group(1))
@@ -144,7 +197,8 @@ def strip_invalid_citations(text, n_sources):
             return ""  # cita ilegible → fuera
         return m.group(0) if 1 <= n <= n_sources else ""
 
-    limpio = _DOC_TAG_RE.sub(_sustituir, text)
+    limpio = _DOC_GROUP_RE.sub(_normalizar_grupo, text)
+    limpio = _DOC_TAG_RE.sub(_sustituir, limpio)
     # El borrado puede dejar dobles espacios o un espacio antes de un punto.
     limpio = re.sub(r"[ \t]{2,}", " ", limpio)
     limpio = re.sub(r"\s+([.,;:])", r"\1", limpio)

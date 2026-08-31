@@ -122,7 +122,7 @@ def retrieve_ranked(question, backend, collection_name, target_drugs=None, top_k
         sim = doc["similarity"]
         docs.append({
             "rank": i,
-            "title": meta.get("title") or "(sin título)",
+            "title": meta.get("title") or "(untitled)",
             "doc_id": meta.get("doc_id"),
             "source": meta.get("source"),
             "url": meta.get("url"),
@@ -180,7 +180,7 @@ def answer_from_backend(question, backend, collection_name, top_k=None):
         for t, m, d in zip(res["documents"][0], res["metadatas"][0], res["distances"][0])
     ]
     if not fragmentos:
-        return {"answer": "No se recuperó evidencia para redactar una respuesta.",
+        return {"answer": "No evidence was retrieved to write an answer from.",
                 "sources": []}
 
     # 2) MISMA construcción de contexto que el chat principal (fuentes ricas:
@@ -192,8 +192,8 @@ def answer_from_backend(question, backend, collection_name, top_k=None):
     #    aviso de acceso restringido para fuentes de pago citadas.
     salida = rag._generate_answer(contexto, question)
     if salida is None:
-        salida = ("No se pudo generar una respuesta fiable a partir de esta "
-                  "evidencia (el modelo degeneró tras varios reintentos).")
+        salida = ("Could not generate a reliable answer from this evidence "
+                  "(the model degenerated after several retries).")
     else:
         salida = citations.redistribute_citations(salida, fuentes)
     salida = citations.strip_invalid_citations(salida, len(fuentes))
