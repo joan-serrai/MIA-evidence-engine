@@ -18,7 +18,7 @@ citando **la fuente exacta** de cada dato y, si no tiene evidencia local suficie
 La **tesis científica** del proyecto: para recuperar evidencia médica, un embedding
 **biomédico y local** (**MedCPT**, de NCBI) rankea mejor la evidencia correcta que el
 generalista de la "competencia" (**text-embedding-3-small** de OpenAI, vía API) — y encima
-**sin enviar datos fuera del ordenador**. La Fase 4 lo mide con datos (ver `README.md`).
+**sin enviar datos fuera del ordenador**. Se mide en DOS capas (ver §7 y `README.md`).
 
 Dos "marcas" recurrentes en el código y la UI:
 - **MIA** = el producto: MedCPT, biomédico, 100% local.
@@ -29,15 +29,18 @@ Dos "marcas" recurrentes en el código y la UI:
 
 ## 2. Entorno y comandos
 
+- **Ubicación del proyecto: `C:\dev\MIA`.** Se movió aquí (31-ago-2026) desde OneDrive: allí
+  `data/chroma` y `.venv` quedaban como *placeholders* en la nube y una base vectorial sobre
+  una carpeta sincronizada es lenta y propensa a corrupción. **No devuelvas el proyecto a OneDrive.**
 - **Windows · Python 3.12** en `.venv`. **Ejecuta SIEMPRE con** `./.venv/Scripts/python.exe`
-  (no `python` a secas — el sistema puede tener otro Python en el PATH).
-- **No es un repositorio git.** No hay framework de **tests** ni de **lint** configurado. La
-  "prueba" de cada módulo es su bloque `if __name__ == "__main__"` (ver §5).
+  (no `python` a secas — el alias de Microsoft Store secuestra ese nombre).
+- **Es un repositorio git** (rama `master`, sin remoto). No hay framework de **tests** ni de
+  **lint** configurado. La "prueba" de cada módulo es su bloque `if __name__ == "__main__"` (ver §5).
 - Requiere **[Ollama](https://ollama.com)** corriendo en `localhost:11434` con estos modelos
   descargados (`ollama pull <tag>`):
   - `koesn/llama3-openbiollm-8b:q4_K_M` — LLM biomédico (`config.LLM_MODEL`)
   - `llama3:8b` — generalista para la comparativa de la Fase 4 (`config.LLM_GENERALIST`)
-  - `qwen2.5:7b` — juez neutral de la evaluación (`config.LLM_JUDGE`)
+  - `qwen2.5:7b` — juez neutral de la evaluación y **agente catalogador** (`config.LLM_JUDGE`)
 - Los **embeddings** se descargan solos la primera vez (HuggingFace / `sentence-transformers`):
   MedCPT (`ncbi/MedCPT-*`, ~torch+transformers) y bge (`BAAI/bge-small-en-v1.5`). OpenAI usa API
   (clave `OPENAI_API_KEY` en `.env`).
@@ -64,8 +67,9 @@ Dos "marcas" recurrentes en el código y la UI:
 ./.venv/Scripts/python.exe -m streamlit run app/streamlit_app.py
 ```
 
-> La app tiene una config de arranque en `.claude/launch.json` (nombre `mia`, puerto **8524**).
-> Con la herramienta de preview de Claude Code arranca con `preview_start {name:"mia"}`.
+> Doble clic en **`run.bat`** (que llama a `run.ps1`) hace lo mismo comprobando antes el
+> entorno y Ollama. La app también tiene config de arranque en `.claude/launch.json`
+> (nombre `mia`, puerto **8524**) para `preview_start {name:"mia"}`.
 
 ### Scripts de la EVALUACIÓN DE EMBEDDINGS (la tesis del capstone)
 
@@ -73,8 +77,11 @@ Dos "marcas" recurrentes en el código y la UI:
 # 1) Crear la colección OpenAI re-embediendo los MISMOS chunks que MedCPT (necesita OPENAI_API_KEY)
 ./.venv/Scripts/python.exe index_openai.py
 
-# 2) Medir recuperación MedCPT vs OpenAI (precision@k, hit@1, MRR) → data/evaluation_embeddings.csv
+# 2) CAPA 2 — recuperación: MedCPT vs OpenAI (precision@k, hit@1, MRR) → data/evaluation_embeddings.csv
 ./.venv/Scripts/python.exe evaluate_embeddings.py
+
+# 3) CAPA 1 — comprensión semántica: tripletes + AUC sobre MedCPT/OpenAI/bge → data/semantics_*.csv y .png
+./.venv/Scripts/python.exe evaluate_embeddings_semantics.py
 ```
 
 ### Utilidades / mantenimiento
@@ -82,6 +89,7 @@ Dos "marcas" recurrentes en el código y la UI:
 ```bash
 ./.venv/Scripts/python.exe ver_db.py                                   # censo de ChromaDB + 3 ejemplos
 ./.venv/Scripts/python.exe ver_db.py --buscar "dupilumab efficacy"     # búsqueda real (ver el RAG recuperar)
+./.venv/Scripts/python.exe export_corpus_manifest.py                   # censo reproducible del corpus (ver §8)
 ./.venv/Scripts/python.exe ingest_desktop_set.py --file "<ruta.txt>"   # ampliar corpus con un export PubMed "Abstract (text)"
 ./.venv/Scripts/python.exe fix_source_titles.py --dry | --apply        # reparar títulos sucios ya indexados
 ./.venv/Scripts/python.exe retitle_desktop_set.py --file "<ruta.txt>"  # re-titular el desktop set sin re-embeber
@@ -114,21 +122,28 @@ bronze  →  silver  →  chroma
 | `src/ingestion.py`   | 1 | Descarga a `bronze`. `fetch_*` por (enfermedad+fármaco) precargan el corpus; `search_*` por texto libre las usa el Scout. Sesión `requests` con backoff en 429/5xx, `sleep(0.34)` por rate-limit de PubMed, `NCBI_API_KEY` opcional. |
 | `src/embeddings.py`  | 1 | **Capa de embeddings intercambiable** (bge ↔ MedCPT ↔ OpenAI). Interfaz única `embed_documents()` / `embed_query()`. Ver §4. |
 | `src/processing.py`  | 1 | `clean_and_chunk` normaliza CT(JSON)+PubMed(XML) a documento uniforme, dedup por `doc_id`, trocea **respetando frases**; `embed_chunks`; `index_in_chroma` (upsert por lotes). `index_new_bronze` indexa solo lo nuevo (lo usa el Scout). |
-| `src/rag.py`         | 2 | **El corazón.** `retrieve` (embebe pregunta + query a Chroma) → `_build_context` (agrupa chunks por documento en `[Doc N]`, presupuesto de chars, extrae outcomes) → `_generate_answer` (OpenBioLLM, prompt "analista", guardián anti-degeneración + reintentos). **RAG estricto**: si la mejor similitud < umbral, NO llama al LLM. |
+| `src/rag.py`         | 2 | **El corazón.** `retrieve` → `_build_context` (agrupa chunks por documento en `[Doc N]`, presupuesto de chars, extrae outcomes) → `_generate_answer` (OpenBioLLM, prompt "analista", guardián anti-degeneración + reintentos). Incluye **router de intención** (`detect_intent`) y **condensado de preguntas de seguimiento** (`condense_question`) para el chat multi-turno. **RAG estricto**: si la mejor similitud < umbral, NO llama al LLM. |
 | `src/citations.py`   | 2 | Post-proceso **determinista** de citas. Reparte cada `[Doc N]` a la frase que respalda (por solapamiento de términos); valida y **elimina citas fuera de rango** → *"cada cita apunta a una fuente real, siempre"*. |
 | `src/outcomes.py`    | 2 | Extrae **cifras verbatim** (EASI 75/90/100, IGA 0/1…) del texto con regex deterministas, etiquetadas con su `[Doc N]` → alimentan el gráfico de la UI **sin que el LLM invente números**. |
 | `src/scout.py`       | 3 | Agente de fallback. `needs_fallback` (2 señales, ver §6) → `run_scout` (extrae entidad con LLM + fallback por keywords, busca, importa, indexa) → reintenta. `answer_with_scout` orquesta. **Importa `rag` en caliente** (evita import circular; `rag` NO importa `scout`). |
 | `src/evaluation.py`  | 4 | Mismo contexto RAG a OpenBioLLM y al generalista (comparación justa) → **juez neutral** puntúa una rúbrica 1-5 en JSON → CSV/JSON en `data/`. |
-| `src/compare.py`     | — | Recuperación comparativa MedCPT vs OpenAI (solo retrieval, **sin LLM**) para la página de comparación de la UI. |
-| `app/streamlit_app.py` | 5 | Chat con citas resaltadas, tarjetas de fuente, KPIs, gráfico de outcomes y panel del Scout. CSS propio inline (sin llamadas a red). |
-| `app/pages/1_Comparativa_MIA_vs_Centivence.py` | 5 | Página lado a lado: qué recupera MedCPT (MIA) vs OpenAI (Centivence) sobre la misma pregunta. |
+| `src/compare.py`     | — | Recuperación comparativa MedCPT vs OpenAI (`retrieve_ranked`, sin LLM) y redacción opcional (`answer_from_backend`, que reutiliza el pipeline completo de `rag`). Alimenta la página de comparación. |
+| `src/triplet_agent.py` | Eval | **Agente catalogador**: descompone una pregunta libre en (ancla, positivo, negativo), **verifica** que el fármaco existe en el corpus y **se abstiene** si no puede. Plan B determinista por mecanismo si el LLM falla. Usa `config.LLM_JUDGE`. |
+| `src/verdict.py`     | Eval | **Veredicto en vivo por pregunta**: qué embedding entendió mejor ESTA consulta (hit@1, on-target, AUC de la pregunta, triplete en vivo). Sin objetivo verificado → **no declara ganador**. |
+| `src/report.py`      | 1.0 | **Informe de evidencia exportable**: HTML autónomo (CSS embebido, sin red), imprimible a PDF. Separa fuentes citadas de solo recuperadas. |
+| `src/status.py`      | 1.0 | `system_status()`: comprueba Ollama, presencia de los modelos y nº de chunks del corpus. **Nunca lanza**; devuelve flags + detalle. |
+| `app/streamlit_app.py` | 5 | Chat con citas resaltadas, tarjetas de fuente, KPIs, gráfico de outcomes, panel del Scout, panel de estado y botón de descarga del informe. CSS propio inline (sin llamadas a red). |
+| `app/pages/1_Comparativa_MIA_vs_Centivence.py` | 5 | Página lado a lado: qué recupera MedCPT (MIA) vs OpenAI (Centivence), con **banner de veredicto** por pregunta y expander del benchmark agregado. |
 
 ### 3.4 Scripts raíz (fuera de `src/`, orquestan o mantienen)
 - `run_phase1.py` — orquesta ingesta→procesado→indexado.
 - `check_setup.py` — diagnóstico de entorno (no instala nada).
+- `run.ps1` / `run.bat` — lanzador de un clic (verifica `.venv`, avisa si Ollama no está, abre la app).
 - `ver_db.py` — inspecciona ChromaDB (censo, ejemplos, búsqueda real).
 - `index_openai.py` — crea la colección OpenAI re-embediendo los chunks de la de MedCPT (mismos textos).
-- `evaluate_embeddings.py` — mide precision@k / hit@1 / MRR de MedCPT vs OpenAI (golden set con niveles Básico/Difícil).
+- `evaluate_embeddings.py` — CAPA 2: precision@k / hit@1 / MRR de MedCPT vs OpenAI (golden set Básico/Difícil).
+- `evaluate_embeddings_semantics.py` — CAPA 1: tripletes + AUC + mapas 2D (MedCPT / OpenAI / bge).
+- `export_corpus_manifest.py` — censo reproducible del corpus indexado (ver §8).
 - `ingest_desktop_set.py` — amplía el corpus con un export "Abstract (text)" de PubMed, reutilizando la tubería.
 - `fix_source_titles.py` / `retitle_desktop_set.py` — reparación puntual de títulos sucios ya indexados (mantenimiento).
 
@@ -170,6 +185,8 @@ por defecto y, muchos, aceptando la pregunta por `sys.argv`). Ejemplos:
 ./.venv/Scripts/python.exe src/outcomes.py                         # extracción de cifras de un abstract de ejemplo
 ./.venv/Scripts/python.exe src/citations.py                        # reparto de citas sobre un caso "duro"
 ./.venv/Scripts/python.exe src/compare.py "antibody targeting IL-4 receptor alpha for eczema"
+./.venv/Scripts/python.exe src/triplet_agent.py                    # catalogado + verificación contra el corpus
+./.venv/Scripts/python.exe src/verdict.py                          # veredicto por pregunta (los dos backends)
 ```
 
 Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respuesta + fuentes.
@@ -194,6 +211,9 @@ Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respue
 - **Números = NUNCA del LLM.** Las cifras del gráfico se extraen con regex del texto recuperado
   (`outcomes.py`), filtrando intervalos de confianza y heterogeneidad de meta-análisis para no
   inventar tasas. Principio anti-alucinación: cada barra es rastreable a su `[Doc N]`.
+- **Abstención > espectáculo.** `triplet_agent` verifica contra el corpus antes de emitir
+  veredicto y `verdict` NO declara ganador sin objetivo verificado. Es la misma filosofía que la
+  validación determinista de citas: preferimos no decir nada a decir algo no fundamentado.
 - **Metadatos de ChromaDB deben ser ESCALARES** (str/int/float/bool; nunca `None` ni listas): por
   eso `authors` y `drugs` se serializan como string con `"; "`.
 - **Idempotencia**: ids deterministas (`<doc_id>::chunk<i>`) + `upsert` → re-ejecutar no duplica.
@@ -210,11 +230,39 @@ Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respue
 
 ## 7. Estado y hoja de ruta
 
-Las **cinco fases están implementadas y probadas** de punta a punta, y la migración a **MedCPT**
-está completa (inner-product, umbral 66.0, 8.920 chunks / 768 dim). La evaluación de embeddings
-(MedCPT vs OpenAI) valida la elección del modelo biomédico local.
+Las **cinco fases están implementadas y probadas** de punta a punta, más la capa **MIA 1.0**
+(informe exportable, panel de estado, robustez, lanzador). La migración a **MedCPT** está
+completa (inner-product, umbral 66.0, 8.920 chunks / 768 dim).
 
-- **`TASKS.md`** es el documento vivo de tareas (pendientes / en curso / ideas). Consúltalo y
-  actualízalo cuando cierres o abras trabajo.
-- **`README.md`** trae la explicación divulgativa, el diagrama y la **tabla de resultados** de la
-  comparativa de embeddings (precision@5, hit@1, MRR por nivel Básico/Difícil).
+La tesis se valida en **dos capas**:
+- **Capa 1 — comprensión semántica** (`data/semantics_summary.csv`): MedCPT 0.833 vs OpenAI
+  0.667 en tripletes Mecanismo→fármaco.
+- **Capa 2 — recuperación** (`data/evaluation_embeddings.csv`): en preguntas difíciles MedCPT
+  hit@1 0.875 vs OpenAI 0.625; MRR 0.938 vs 0.792.
+
+Documentos vivos:
+- **`TASKS.md`** — tareas (pendientes / en curso / ideas). Consúltalo y actualízalo cuando
+  cierres o abras trabajo.
+- **`README.md`** — explicación divulgativa, diagrama y tablas de resultados.
+- **`docs/memoria_tfm.md`** — borrador vivo de la memoria final del TFM.
+
+---
+
+## 8. Reproducibilidad del corpus (importante)
+
+El corpus se construyó de dos maneras y **solo una es reproducible sola**:
+
+1. `run_phase1.py` descarga a `data/bronze` por (enfermedad + fármaco) → **sí** se regenera.
+2. `ingest_desktop_set.py` importó un export manual de PubMed ("Abstract (text)") que vivía en
+   el escritorio del ordenador anterior. **Ese `.txt` se ha perdido**, y de ahí sale buena parte
+   de los 8.920 chunks.
+
+Para que la pérdida no rompa la reproducibilidad, `export_corpus_manifest.py` lee ChromaDB y
+escribe el censo de TODO lo indexado:
+
+- `data/corpus_manifest.csv` — un documento por fila (doc_id, fuente, título, URL, fármacos,
+  acceso, nº de chunks y si es regenerable desde bronze).
+- `data/corpus_pmids.txt` — la lista de PMID, re-descargables desde PubMed.
+
+**Regla:** si vuelves a indexar o amplías el corpus, **re-ejecuta este script y commitea el CSV**.
+Es la única prueba de qué hay dentro del índice.

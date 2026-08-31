@@ -35,21 +35,45 @@ exacta** de cada dato y, si no tiene la información, **sale a buscarla al momen
         con citas     (PubMed / ClinicalTrials.gov → importa e indexa)
 ```
 
+**El corpus actual:** 3.160 documentos (2.971 de PubMed + 189 de ClinicalTrials.gov)
+troceados en **8.920 fragmentos** vectorizados con MedCPT (768 dimensiones).
+
+---
+
 ## 🔬 Resultados: ¿por qué un embedding biomédico? (MedCPT vs OpenAI)
 
 La pregunta central del proyecto: para buscar evidencia médica, ¿merece la pena un
 embedding **especializado y local** (**MedCPT**, de NCBI) frente al **generalista de
 Centivence** (**text-embedding-3-small** de OpenAI, vía API)?
 
-**Experimento controlado:** mismos ~8.900 fragmentos de PubMed, mismo troceado, mismas
-preguntas. Lo *único* que cambia es el modelo de embedding, así que cualquier diferencia
-es atribuible a él. Dos niveles de dificultad:
+Se responde en **dos capas**, porque son preguntas distintas.
 
-- **Básico** — la pregunta **nombra** el fármaco (control de sanidad; casi cualquier
-  modelo acierta).
+### Capa 1 — ¿ENTIENDE el modelo el campo semántico biomédico?
+
+Geometría pura del espacio de embeddings: **no toca el corpus, ni ChromaDB, ni el LLM**.
+Se mide con **tripletes** (ancla, positivo, negativo): el modelo acierta si acerca más el
+positivo que el negativo. Solo cuenta el *orden*, así que es comparable entre modelos con
+escalas distintas.
+
+| Modelo | Sinónimos | **Mecanismo→fármaco** | Clase | GLOBAL (AUC) |
+|--------|:---------:|:---------------------:|:-----:|:------------:|
+| **MedCPT** (biomédico, local — MIA) | 1.000 | **0.833** | 1.000 | **0.909** (0.876) |
+| OpenAI 3-small (generalista — Centivence) | 1.000 | 0.667 | 1.000 | 0.818 (0.810) |
+| bge-small (generalista local) | 1.000 | 0.667 | 0.500 | 0.727 (0.810) |
+
+> El nivel **Mecanismo→fármaco** (*"¿sabe que anti-IL-13 va con tralokinumab?"*) es el que
+> importa: es donde un modelo entrenado en biomedicina debería destacar, y destaca.
+> Detalle en [`data/semantics_triplets.csv`](data/semantics_triplets.csv).
+
+### Capa 2 — ¿RECUPERA el paper correcto del corpus?
+
+**Experimento controlado:** mismos ~8.900 fragmentos, mismo troceado, mismas preguntas. Lo
+*único* que cambia es el modelo de embedding, así que cualquier diferencia es atribuible a
+él. Dos niveles de dificultad:
+
+- **Básico** — la pregunta **nombra** el fármaco (control de sanidad).
 - **Difícil** — la pregunta usa **mecanismo o sinónimo** ("anticuerpo anti-IL-13",
-  "eczema") **sin nombrar** el fármaco. Aquí es donde un modelo que *entiende* biomedicina
-  debería destacar.
+  "eczema") **sin nombrar** el fármaco.
 
 | Modelo | Nivel | precision@5 | hit@1 | MRR |
 |--------|-------|:-----------:|:-----:|:---:|
@@ -82,6 +106,25 @@ documento es del fármaco correcto?"), no con juicio clínico paper a paper. Es 
 reproducible, pero un siguiente paso de mayor rigor sería una validación **humana y a
 ciegas** de una muestra.
 
+### Y el LLM que redacta, ¿gana también?
+
+Fase 4: mismo contexto recuperado a OpenBioLLM (biomédico) y a llama3:8b (generalista, la
+base sobre la que se afinó → comparación justa), puntuados por un **juez neutral**
+(qwen2.5:7b) con una rúbrica 1-5 sobre 15 preguntas.
+
+| Modelo | Fidelidad de cita | Corrección clínica | Jerga | Alucinación | Tono | **Media** |
+|--------|:---:|:---:|:---:|:---:|:---:|:---:|
+| Biomédico (OpenBioLLM) | 3.40 | **4.38** | **4.40** | **4.21** | **4.67** | **4.16** |
+| Generalista (llama3:8b) | **4.13** | 4.00 | 4.00 | 4.20 | 4.40 | 4.15 |
+
+**Empate técnico en media**, con ventaja del biomédico en todo *salvo* fidelidad de cita.
+Ese 3.40 es esperable y está mitigado por diseño: OpenBioLLM coloca mal las `[Doc N]`, así
+que **MIA no se fía de él** — las citas las reparte y valida después, de forma determinista,
+[`src/citations.py`](src/citations.py). La conclusión que importa: **la apuesta por un motor
+soberano no sacrifica calidad a cambio de privacidad**.
+
+---
+
 ## 📁 Estructura del proyecto
 
 | Ruta | Qué es | Módulo del curso |
@@ -90,37 +133,63 @@ ciegas** de una muestra.
 | `check_setup.py` | Comprobación rápida de que tu entorno funciona | — |
 | `src/ingestion.py` | Descargar evidencia de PubMed y ClinicalTrials.gov | 2-3 (Datos) |
 | `src/processing.py` | Limpiar, trocear (chunks) y vectorizar | 2-3 + 8 |
+| `src/embeddings.py` | Capa de embeddings intercambiable (MedCPT / bge / OpenAI) | 5-6 |
 | `src/rag.py` | Búsqueda en ChromaDB + RAG estricto con citas | 8 (RAG) |
+| `src/citations.py` | Reparto y validación **deterministas** de las citas | 8 |
+| `src/outcomes.py` | Cifras (EASI, IGA) extraídas con regex, nunca por el LLM | 8 |
 | `src/scout.py` | Agente de fallback que rellena vacíos de evidencia | 9 (Agentes) |
+| `src/triplet_agent.py` | Agente catalogador de tripletes, con abstención | 9 (Agentes) |
+| `src/verdict.py` | Veredicto en vivo: qué embedding entendió mejor la pregunta | 12 |
 | `src/evaluation.py` | Comparar modelo biomédico local vs LLM generalista | 12 (Ciclo de vida) |
+| `src/report.py` | Informe de evidencia exportable (HTML autónomo → PDF) | 11 |
+| `src/status.py` | Panel de estado del sistema (Ollama, modelos, corpus) | 11 |
 | `app/streamlit_app.py` | Interfaz de chat con citas | 11 (Infra) |
-| `data/bronze` | Datos crudos (JSON/XML/PDF originales) | — |
+| `app/pages/1_Comparativa…` | MIA vs Centivence lado a lado, con veredicto | 12 |
+| `data/bronze` | Datos crudos (JSON/XML originales) | — |
 | `data/silver` | Texto limpio y troceado | — |
 | `data/chroma` | Base de datos vectorial (ChromaDB) | — |
+| `data/corpus_manifest.csv` | **Censo del corpus indexado** (reproducibilidad) | — |
 
-> Todas las fases (1–5) están **implementadas y funcionando** de punta a punta.
+> Todas las fases (1–5) están **implementadas y funcionando** de punta a punta, más la
+> capa **MIA 1.0** (informe exportable, panel de estado, robustez, lanzador de un clic).
 
 ---
 
 ## ⚙️ Puesta en marcha (Windows)
 
-1. **Instala Python 3.11+** desde https://www.python.org/downloads/
-   (marca la casilla *"Add Python to PATH"* durante la instalación).
-2. **Abre esta carpeta en VS Code**: `Archivo → Abrir carpeta…` y elige la carpeta `MIA`.
-3. **Crea un entorno virtual** (aísla las librerías del proyecto). En la terminal de VS Code:
+> El proyecto vive en **`C:\dev\MIA`**. **No lo muevas a OneDrive**: allí la base vectorial
+> queda como "archivo en la nube" y se vuelve lenta e insegura.
+
+### Si ya está montado
+
+Doble clic en **`run.bat`**. Comprueba el entorno, avisa si Ollama no está en marcha y abre
+la app en el navegador.
+
+### Desde cero (equipo nuevo)
+
+1. **Python 3.12** — https://www.python.org/downloads/ (marca *"Add Python to PATH"*).
+2. **Ollama** — https://ollama.com/download, y descarga los tres modelos:
+   ```powershell
+   ollama pull koesn/llama3-openbiollm-8b:q4_K_M
+   ollama pull llama3:8b
+   ollama pull qwen2.5:7b
+   ```
+3. **Entorno virtual y dependencias**:
    ```powershell
    python -m venv .venv
-   .venv\Scripts\activate
+   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
-4. **Instala las dependencias**:
-   ```powershell
-   pip install -r requirements.txt
-   ```
+4. **Credenciales**: copia `.env.example` a `.env` y rellena `OPENAI_API_KEY`
+   (solo hace falta para la comparativa; el producto MIA no la usa).
 5. **Comprueba que todo arranca**:
    ```powershell
-   python check_setup.py
+   .\.venv\Scripts\python.exe check_setup.py
+   .\.venv\Scripts\python.exe ver_db.py
    ```
-6. **(Más adelante) Instala Ollama** para el modelo local: https://ollama.com/download
+6. **Arranca la app**: doble clic en `run.bat`.
+
+> ⚠️ Las preguntas hay que hacerlas **en inglés**: el corpus y el LLM biomédico lo son, y
+> OpenBioLLM degenera si se le habla en español. Ver `CLAUDE.md` §6.
 
 ### Extensiones de VS Code recomendadas
 - *Python* (Microsoft)
@@ -128,13 +197,15 @@ ciegas** de una muestra.
 
 ---
 
-## 🗺️ Hoja de ruta (borrador, ~1 mes)
+## 🗺️ Estado y hoja de ruta
 
-- **Fase 1 — Datos**: `ingestion.py` (bajar ensayos de dermatitis atópica) → `processing.py` (trocear + vectorizar).
-- **Fase 2 — RAG con citas**: `rag.py` (buscar + responder citando la fuente) sobre el modelo local.
-- **Fase 3 — Agente Scout**: `scout.py` (detectar vacíos → consultar APIs → importar).
-- **Fase 4 — Validación**: `evaluation.py` (biomédico local vs generalista).
-- **Fase 5 — Interfaz**: `app/streamlit_app.py` (chat demostrable).
+- ✅ **Fase 1 — Datos**: `ingestion.py` + `processing.py` (8.920 chunks indexados).
+- ✅ **Fase 2 — RAG con citas**: `rag.py` + `citations.py` + `outcomes.py`.
+- ✅ **Fase 3 — Agente Scout**: `scout.py`, con búsqueda externa real ejecutada.
+- ✅ **Fase 4 — Validación**: `evaluation.py` (biomédico vs generalista, juez neutral).
+- ✅ **Fase 5 — Interfaz**: `streamlit_app.py` + página de comparativa.
+- ✅ **MIA 1.0**: informe exportable, panel de estado, robustez, lanzador de un clic.
+- ✅ **Evaluación de embeddings**: Capa 1 (semántica) y Capa 2 (recuperación).
+- ⏳ **Memoria final del TFM** — borrador vivo en [`docs/memoria_tfm.md`](docs/memoria_tfm.md).
 
-*Estado actual: las cinco fases están implementadas y probadas. La evaluación de embeddings
-(MedCPT vs OpenAI, ver arriba) valida la elección del modelo biomédico local.*
+Tareas abiertas e ideas: [`TASKS.md`](TASKS.md). Guía técnica interna: [`CLAUDE.md`](CLAUDE.md).
