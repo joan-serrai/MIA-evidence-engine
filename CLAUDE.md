@@ -246,10 +246,23 @@ La tesis se valida en **dos capas**:
   hit@1 0.875 vs OpenAI 0.625; MRR 0.938 vs 0.792.
 
 Documentos vivos:
-- **`TASKS.md`** — tareas (pendientes / en curso / ideas). Consúltalo y actualízalo cuando
-  cierres o abras trabajo.
+- **`CHANGELOG.md`** — **registro cronológico de cambios con el PORQUÉ de cada uno.**
+  ⚠️ **Al cerrar cualquier bloque de trabajo, añade una entrada aquí antes de commitear.**
+  Formato: fecha · título · hash, y dentro **Añadido / Cambiado / Corregido / Medido**.
+  Escribe el **motivo**, no solo el qué: es lo único que no se puede reconstruir leyendo el
+  código. De aquí sale la sección "desarrollo del trabajo" de la memoria del TFM.
+- **`TASKS.md`** — tareas (pendientes / en curso / ideas). Mira al FUTURO; el CHANGELOG mira
+  al pasado. Consúltalo y actualízalo cuando cierres o abras trabajo.
 - **`README.md`** — explicación divulgativa, diagrama y tablas de resultados.
 - **`docs/memoria_tfm.md`** — borrador vivo de la memoria final del TFM.
+
+**Los tres niveles de trazabilidad** (no se solapan, se complementan):
+
+| Nivel | Dónde | Responde a |
+|-------|-------|-----------|
+| Exacto | `git log` / `git show` | ¿Qué línea cambió, en qué commit? |
+| Narrativo | `CHANGELOG.md` | ¿Qué cambió, cuándo y **por qué**? |
+| Prospectivo | `TASKS.md` | ¿Qué falta por hacer? |
 
 ---
 

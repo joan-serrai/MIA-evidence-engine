@@ -14,51 +14,11 @@ Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a va
 
 *(nada en curso ahora mismo — ver Pendientes)*
 
-## ✅ Cerrado en esta sesión (31-ago-2026)
+## 📜 Historial
 
-- **Rediseño de la respuesta y del informe** (a partir de un informe real que salió mal):
-  - [✅] **BUG GRAVE de trazabilidad**: si la respuesta no traía citas, `report.py` y
-        `streamlit_app.py` ASUMÍAN que la primera fuente estaba citada. Medido: una
-        respuesta sobre nasofaringitis se atribuyó a un meta-análisis que no menciona
-        esa palabra. Eliminado en los dos sitios; ahora sin citas se dice claramente.
-  - [✅] **Citas agrupadas** (`[Doc 1, Doc 2, Doc 3]`) sobrevivían al post-proceso: el
-        regex de limpieza exigía `]` tras el número. Ahora se limpian y se reparten.
-  - [✅] **Reparto de citas por IDF**: contar términos compartidos fallaba cuando los 5
-        papers hablaban del mismo fármaco (empate → ninguna cita). Ahora cada término
-        pesa por lo raro que es entre los candidatos.
-  - [✅] **Respuestas más largas**: el contexto usaba solo los chunks recuperados (un
-        tercio del abstract). Ahora va el documento completo + directiva de formato al
-        final del mensaje de usuario + reintento por longitud que conserva la mejor.
-  - [✅] **Cifras de seguridad**: `outcomes.py` no tenía ni un patrón de eventos
-        adversos, así que toda pregunta de seguridad daba la tabla vacía. Añadidos, con
-        etiqueta `kind` para no mezclar eficacia y seguridad en el mismo gráfico.
-  - [✅] **Interfaz e informe monolingües en inglés** (los comentarios siguen en español).
-  - [✅] **Orden de lectura**: respuesta + fuentes citadas + cifras arriba; confianza y
-        papers no usados, plegados en un único "Retrieval details".
-
-- **Versiones de dependencias fijadas.** `requirements.txt` pasa de `>=` a `==` (directas,
-  comentadas) y se añade `requirements.lock.txt` con el árbol completo. Motivo: al montar el
-  proyecto en el equipo nuevo, `>=` trajo saltos de versión MAYOR (transformers 4→5,
-  pandas 2→3, numpy 1→2). Funcionó, pero por suerte. Validado con `pip install --dry-run`
-  de ambos ficheros y `pip check` sin conflictos.
-
-- **Veredicto por pregunta en la Comparativa.**
-  - [✅] `src/triplet_agent.py` — agente catalogador (ancla/positivo/negativo) con
-        verificación contra el corpus y **abstención** si no puede verificar.
-        Fallback determinista por mecanismo si el LLM falla.
-  - [✅] `src/verdict.py` — veredicto en vivo por pregunta (hit@1, on-target,
-        AUC por pregunta, triplete en vivo) y desempate lexicográfico.
-  - [✅] `evaluate_embeddings_semantics.py` — benchmark agregado de "Capa 1"
-        (comprensión semántica por tripletes + AUC + mapas 2D). Ya ejecutado.
-  - [✅] UI: banner de veredicto + expander con el benchmark agregado.
-  - [✅] `src/compare.py`: `answer_from_backend` reutiliza el pipeline completo
-        de `rag` (`_build_context` / `_generate_answer` / aviso de acceso).
-  - [✅] **Rodada de verdad en el navegador**: con "Antibody targeting the IL-4 receptor
-        alpha for atopic eczema", MedCPT puso dupilumab en el puesto 1 y OpenAI en el 3;
-        el banner, los chips de métricas y las dos columnas se pintan bien.
-  - [✅] Arreglado: `verdict.py` no se podía ejecutar directo (importes relativos en
-        caliente sin paquete padre). Ahora usa el patrón de importes duales.
-  - [✅] Arreglado: `use_container_width` (retirado de Streamlit el 31-12-2025) → `width="stretch"`.
+El registro de lo YA hecho, con el motivo de cada cambio, vive en
+[`CHANGELOG.md`](CHANGELOG.md). Este archivo mira al futuro (qué falta);
+el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
