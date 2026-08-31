@@ -22,6 +22,18 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **Los ensayos de CT.gov no ganan en el ranking.** Sus resultados ya están
+  indexados (Capa 1 hecha), pero MedCPT casi siempre prefiere las revisiones de
+  PubMed: hay 2.971 papers frente a 189 ensayos, y un abstract se parece más a
+  una pregunta en lenguaje natural que la prosa de un registro. El dato sale
+  cuando la pregunta es de corte "ensayo", pero no domina. Arreglarlo pide
+  **recuperación híbrida** (p. ej. dar un empujón a los documentos con cifras
+  estructuradas cuando la pregunta es de seguridad), no más datos.
+- **El aviso de "paper de pago" no salta nunca.** Los 3.160 documentos indexados
+  tienen `access = None` (se indexaron antes de que existiera el campo) y
+  `rag.py` hace `meta.get("access") or "open"`, así que todo se marca como
+  abierto. Arreglarlo exige reprocesar el corpus (~11 min con la CPU actual).
+
 - **Memoria final del TFM.** Las `.docx` de la carpeta padre son la entrega
   *preliminar* (30-jun-2026, solo secciones 1-3) y van muy por detrás: no
   mencionan MedCPT, ni la evaluación de embeddings, ni MIA 1.0. Hay que

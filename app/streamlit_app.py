@@ -41,59 +41,173 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      /* --- Paleta Centivence como variables reutilizables --- */
+      /* ====================================================================
+         PALETA "AURORA LSHC"
+         --------------------------------------------------------------------
+         Fondo nocturno + acentos de aurora boreal, con los colores que se usan
+         en Life Sciences & Health Care: verde-azulado clínico, cian, verde
+         salud y un violeta de apoyo. NO son colores elegidos por bonitos: el
+         verde-azulado y el cian son los tonos de confianza del sector sanitario,
+         y el violeta se reserva para lo secundario (la línea Centivence).
+
+         Regla de contraste: el aurora vive SOLO en el fondo y en los bordes.
+         Todo lo que hay que LEER va sobre una superficie sólida y oscura. En una
+         herramienta clínica, la legibilidad manda sobre el efecto.
+         ==================================================================== */
       :root {
-        --mia-teal:    #3f6e66;   /* acento salvia (conserva el nombre por compatibilidad) */
-        --mia-teal-d:  #2c524c;   /* salvia oscuro */
-        --mia-ink:     #1a1a1a;   /* tinta */
-        --mia-slate:   #555555;   /* gris de cuerpo */
-        --mia-line:    #eeeeee;   /* línea/hairline */
-        --mia-bg-soft: #fafafa;   /* fondo suave */
-        --mia-accent-br: #5a9389; /* salvia brillante */
-        --mia-success:   #1a7a3a; /* verde éxito */
-        --mia-success-2: #22c55e; /* verde vivo (puntos) */
-        --mia-mint:      #e8f5ee; /* fondo menta */
-        --mia-amber:     #92600a; /* ámbar cálido (avisos) */
-        --mia-track:     #f0f0f0; /* pista de barras */
-        /* Tipografía: Inter si está instalada; si no, Segoe UI (Windows) — SIN red,
-           coherente con el principio "100% local". Mono para etiquetas/números. */
+        /* Fondos: azul casi negro, como cielo nocturno */
+        --mia-bg:      #070d14;
+        --mia-bg-soft: #0e1723;   /* superficie elevada (tarjetas, paneles) */
+        --mia-bg-2:    #132030;   /* superficie más elevada (hover, chips) */
+
+        /* Acentos de la aurora (LSHC) */
+        --mia-teal:    #2fe0a8;   /* verde-azulado brillante: acento principal */
+        --mia-teal-d:  #16b98a;   /* verde-azulado profundo */
+        --mia-cyan:    #38bdf8;   /* cian: segundo velo de la aurora */
+        --mia-green:   #7ee787;   /* verde salud: confirmaciones */
+        --mia-violet:  #8b7cf6;   /* violeta: Centivence / secundario */
+        --mia-amber:   #fbbf24;   /* ámbar: avisos y seguridad */
+
+        /* Texto */
+        --mia-ink:     #e8f1f5;   /* texto principal, blanco frío */
+        --mia-slate:   #93a7b8;   /* texto secundario */
+        --mia-line:    rgba(148,180,200,.16);  /* hairline translúcida */
+
+        --mia-success:   #2fe0a8;
+        --mia-success-2: #7ee787;
+        --mia-mint:      rgba(47,224,168,.12); /* fondo de insignia */
+        --mia-track:     rgba(148,180,200,.13);
+        --mia-accent-br: #38bdf8;
+
         --mia-font: 'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
         --mia-mono: 'JetBrains Mono','Cascadia Code',Consolas,'SFMono-Regular',ui-monospace,monospace;
       }
 
-      /* Fuente de marca en toda la app (stack local, sin llamadas a Google Fonts). */
       html, body, [class*="css"], .stMarkdown, .block-container { font-family: var(--mia-font); }
+      .block-container { padding-top: 2.2rem; max-width: 860px; }
+      .stApp { background: var(--mia-bg); }
 
-      /* Reducimos el hueco superior por defecto de Streamlit. */
-      .block-container { padding-top: 2.2rem; max-width: 820px; }
+      /* ====================================================================
+         EL FONDO AURORA
+         --------------------------------------------------------------------
+         Tres "velos" de luz: cada uno es un radial-gradient muy difuminado que
+         se desvanece a transparente. Se superponen y se mueven MUY despacio
+         (30-45 s) con desfases distintos, así que nunca repiten la misma forma
+         — que es justo como se comporta una aurora real.
 
-      /* --- Cabecera de marca con gradiente --- */
+         `filter: blur(70px)` es lo que convierte tres manchas de color en luz
+         difusa. `pointer-events:none` evita que la capa intercepte clics, y
+         `position:fixed` la mantiene quieta al hacer scroll.
+         ==================================================================== */
+      .stApp::before {
+        content: "";
+        position: fixed; inset: -25% -12% auto -12%;
+        height: 95vh; z-index: 0; pointer-events: none;
+        /* Elipses ANCHAS y BAJAS (28% de alto), no círculos: una aurora real cae
+           en cortinas horizontales, no en manchas redondas. El ligero giro las
+           inclina como el arco auroral sobre el horizonte. */
+        background:
+          radial-gradient(58% 26% at 14% 20%, rgba(47,224,168,.58) 0%, transparent 70%),
+          radial-gradient(52% 24% at 48% 10%, rgba(56,189,248,.46) 0%, transparent 68%),
+          radial-gradient(50% 28% at 84% 26%, rgba(139,124,246,.44) 0%, transparent 68%),
+          radial-gradient(64% 20% at 40% 38%, rgba(126,231,135,.26) 0%, transparent 72%);
+        filter: blur(78px) saturate(145%);
+        transform: rotate(-4deg);
+        animation: auroraDrift 42s ease-in-out infinite alternate;
+      }
+      /* Segundo velo, más bajo y verde, para dar profundidad al degradado. */
+      .stApp::after {
+        content: "";
+        position: fixed; inset: auto -18% -32% -18%;
+        height: 62vh; z-index: 0; pointer-events: none;
+        background:
+          radial-gradient(60% 30% at 26% 82%, rgba(126,231,135,.32) 0%, transparent 72%),
+          radial-gradient(56% 26% at 74% 92%, rgba(22,185,138,.34) 0%, transparent 70%),
+          radial-gradient(48% 24% at 92% 70%, rgba(56,189,248,.22) 0%, transparent 70%);
+        filter: blur(92px) saturate(135%);
+        transform: rotate(3deg);
+        animation: auroraDrift2 55s ease-in-out infinite alternate;
+      }
+      /* OJO: cada keyframe repite rotate(). `transform` es UNA sola propiedad,
+         así que si la animación solo pone translate/scale, machaca la rotación
+         declarada en la regla base y la cortina se endereza a mitad del ciclo. */
+      @keyframes auroraDrift {
+        0%   { transform: rotate(-4deg) translate3d(0,0,0)     scale(1);    opacity:.90; }
+        50%  { transform: rotate(-2deg) translate3d(4%,2%,0)   scale(1.12); opacity:1;   }
+        100% { transform: rotate(-6deg) translate3d(-3%,-2%,0) scale(1.05); opacity:.82; }
+      }
+      @keyframes auroraDrift2 {
+        0%   { transform: rotate(3deg) translate3d(0,0,0)    scale(1.06); opacity:.72; }
+        100% { transform: rotate(5deg) translate3d(5%,-3%,0) scale(1);    opacity:1;   }
+      }
+      /* Accesibilidad: quien pida menos movimiento en su sistema, ve la aurora
+         quieta. El efecto se mantiene; solo se detiene la animación. */
+      @media (prefers-reduced-motion: reduce) {
+        .stApp::before, .stApp::after { animation: none; }
+      }
+      /* El contenido va POR ENCIMA de los velos. */
+      .block-container, section[data-testid="stSidebar"] { position: relative; z-index: 1; }
+
+      /* ====================================================================
+         CABECERA DE MARCA
+         ==================================================================== */
       .mia-hero {
-        background: linear-gradient(150deg, #3f6e66 0%, #2c524c 100%);
-        border-radius: 20px;
-        padding: 26px 30px;
-        color: #fff;
-        box-shadow: 0 10px 30px -12px rgba(63,110,102,.35);
-        margin-bottom: 6px;
+        position: relative; overflow: hidden;
+        background:
+          linear-gradient(135deg, rgba(47,224,168,.16) 0%, rgba(56,189,248,.10) 45%,
+                                  rgba(139,124,246,.14) 100%),
+          var(--mia-bg-soft);
+        border: 1px solid var(--mia-line);
+        border-radius: 22px; padding: 28px 32px; color: var(--mia-ink);
+        box-shadow: 0 18px 50px -22px rgba(47,224,168,.35),
+                    inset 0 1px 0 rgba(255,255,255,.06);
+        margin-bottom: 8px;
+      }
+      /* Filamento de luz superior: el "borde" brillante de la aurora. */
+      .mia-hero::before {
+        content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+        background: linear-gradient(90deg, transparent, var(--mia-teal) 22%,
+                                    var(--mia-cyan) 52%, var(--mia-violet) 78%, transparent);
+        opacity: .85;
       }
       .mia-hero h1 {
-        font-size: 1.9rem; font-weight: 800; margin: 0;
-        letter-spacing: -.02em; color: #fff;
+        font-size: 1.95rem; font-weight: 800; margin: 0;
+        letter-spacing: -.025em;
+        background: linear-gradient(100deg, #ffffff 0%, var(--mia-teal) 55%, var(--mia-cyan) 100%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: var(--mia-teal);
       }
-      .mia-hero .tag { font-size: .95rem; opacity: .92; margin-top: 4px; }
-      .mia-badges { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+      .mia-hero .tag { font-size: .95rem; color: var(--mia-slate); margin-top: 6px; }
+      .mia-hero .tag b { color: var(--mia-ink); }
+      .mia-badges { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
       .mia-badges span {
-        background: rgba(255,255,255,.16);
-        border: 1px solid rgba(255,255,255,.28);
-        padding: 4px 11px; border-radius: 999px;
-        font-size: .78rem; font-weight: 600; backdrop-filter: blur(4px);
+        background: rgba(47,224,168,.10);
+        border: 1px solid rgba(47,224,168,.28);
+        color: #bff3e0;
+        padding: 5px 12px; border-radius: 999px;
+        font-size: .78rem; font-weight: 600;
       }
 
-      /* --- Insignia de cita [Doc N] dentro de la respuesta --- */
+      /* --- Tira "cómo funciona" --- */
+      .mia-how { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0 6px; }
+      .mia-how .step {
+        flex: 1 1 210px;
+        background: var(--mia-bg-soft);
+        border: 1px solid var(--mia-line);
+        border-radius: 14px; padding: 13px 15px;
+      }
+      .mia-how .s-n {
+        font-family: var(--mia-mono); font-size: .64rem; font-weight: 700;
+        letter-spacing: .1em; color: var(--mia-teal); margin-bottom: 5px;
+      }
+      .mia-how .s-t { font-size: .88rem; font-weight: 700; color: var(--mia-ink); }
+      .mia-how .s-d { font-size: .8rem; color: var(--mia-slate); margin-top: 3px; line-height: 1.45; }
+
+      /* --- Insignia de cita [Doc N] --- */
       .cite {
         display: inline-block;
-        background: var(--mia-mint); color: var(--mia-teal-d);
-        border: 1px solid #cde8d8;
+        background: var(--mia-mint); color: var(--mia-teal);
+        border: 1px solid rgba(47,224,168,.35);
         font-size: .74rem; font-weight: 700;
         padding: 1px 7px; border-radius: 6px;
         margin: 0 1px; white-space: nowrap; vertical-align: baseline;
@@ -102,119 +216,115 @@ st.markdown(
       /* --- Tarjeta de fuente --- */
       .src-card {
         border: 1px solid var(--mia-line);
-        border-left: 4px solid var(--mia-teal);
-        border-radius: 12px;
-        padding: 14px 16px; margin-bottom: 12px;
-        background: #fff;
-        box-shadow: 0 1px 2px rgba(15,23,42,.04);
+        border-left: 3px solid var(--mia-teal);
+        border-radius: 14px;
+        padding: 15px 17px; margin-bottom: 12px;
+        background: var(--mia-bg-soft);
       }
       .src-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .src-doc {
-        background: var(--mia-teal); color: #fff;
-        font-size: .72rem; font-weight: 700;
+        background: linear-gradient(120deg, var(--mia-teal-d), var(--mia-teal));
+        color: #04231a; font-size: .72rem; font-weight: 800;
         padding: 2px 9px; border-radius: 6px;
       }
       .src-type {
-        font-size: .72rem; font-weight: 700; letter-spacing: .03em;
+        font-size: .72rem; font-weight: 700; letter-spacing: .04em;
         color: var(--mia-slate); text-transform: uppercase;
       }
       .src-sim { margin-left: auto; font-size: .74rem; font-weight: 700; }
       .src-title {
         font-size: .98rem; font-weight: 600; color: var(--mia-ink);
-        margin: 9px 0 6px; line-height: 1.35;
+        margin: 10px 0 6px; line-height: 1.38;
       }
       .src-meta { font-size: .8rem; color: var(--mia-slate); margin-bottom: 8px; }
-
-      /* Fragmento REAL recuperado: la "ilustración" que corresponde con la fuente. */
       .src-snippet {
-        font-size: .86rem; color: #333; line-height: 1.5;
-        border-left: 3px solid var(--mia-line);
+        font-size: .86rem; color: #c3d4e0; line-height: 1.55;
+        border-left: 2px solid rgba(47,224,168,.35);
         padding: 6px 0 6px 12px; margin: 4px 0 10px;
       }
-      .src-snippet::before { content: "\201C"; }
-      .src-snippet::after  { content: "\201D"; }
-
-      /* Fármacos detectados en la fuente (dato real de la metadata). */
+      /* Comillas tipográficas LITERALES, no el escape CSS "\\201C". Motivo: este
+         CSS vive dentro de una cadena de Python, y ahí "\201" es un escape OCTAL
+         → Python lo convertía en el carácter de control 0x81 y dejaba la "C"
+         suelta, así que los fragmentos empezaban por "▮C" en vez de por “. */
+      .src-snippet::before { content: "“"; }
+      .src-snippet::after  { content: "”"; }
       .src-drugs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
       .src-drugs span {
         font-family: var(--mia-mono); font-size: .7rem; font-weight: 500;
-        background: var(--mia-mint); color: var(--mia-success);
-        border: 1px solid #cde8d8; padding: 2px 8px; border-radius: 999px;
+        background: rgba(47,224,168,.10); color: var(--mia-teal);
+        border: 1px solid rgba(47,224,168,.25); padding: 2px 8px; border-radius: 999px;
       }
-      .src-bar { height: 6px; border-radius: 999px; background: var(--mia-track); overflow: hidden; margin: 8px 0 10px; }
-      .src-bar > i { display: block; height: 100%; border-radius: 999px; }
+      .src-bar { height: 5px; border-radius: 999px; background: var(--mia-track);
+                 overflow: hidden; margin: 8px 0 10px; }
+      .src-bar > i { display: block; height: 100%; border-radius: 999px;
+                     box-shadow: 0 0 12px currentColor; }
+      .src-reason {
+        font-size: .83rem; color: var(--mia-slate); background: rgba(148,180,200,.06);
+        border: 1px solid var(--mia-line); border-radius: 10px;
+        padding: 8px 10px; margin: 4px 0 8px;
+      }
       .src-link {
         display: inline-block; font-size: .82rem; font-weight: 600;
-        color: var(--mia-teal-d); text-decoration: none;
+        color: var(--mia-teal); text-decoration: none;
       }
       .src-link:hover { text-decoration: underline; }
 
-      /* --- Data Cards: fila de KPIs con datos REALES de la respuesta --- */
+      /* --- Data Cards (KPIs) --- */
       .mia-kpis { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0 4px; }
       .mia-kpi {
         flex: 1 1 120px;
-        border: 1px solid var(--mia-line); border-radius: 12px;
-        padding: 12px 14px; background: #fff;
-        box-shadow: 0 1px 2px rgba(26,26,26,.04);
+        border: 1px solid var(--mia-line); border-radius: 14px;
+        padding: 13px 15px; background: var(--mia-bg-soft);
       }
       .mia-kpi .k-num {
         font-family: var(--mia-mono); font-size: 1.5rem; font-weight: 600;
         color: var(--mia-ink); line-height: 1.1; letter-spacing: -.01em;
       }
       .mia-kpi .k-lbl {
-        font-family: var(--mia-mono); font-size: .66rem; font-weight: 600;
-        letter-spacing: .08em; text-transform: uppercase;
-        color: var(--mia-slate); margin-top: 4px;
+        font-family: var(--mia-mono); font-size: .64rem; font-weight: 600;
+        letter-spacing: .09em; text-transform: uppercase;
+        color: var(--mia-slate); margin-top: 5px;
       }
       .mia-kpi .k-dot {
         display: inline-block; width: 7px; height: 7px; border-radius: 999px;
-        margin-right: 6px; vertical-align: middle;
+        margin-right: 6px; vertical-align: middle; box-shadow: 0 0 10px currentColor;
       }
-      .mia-kpi.k-scout { border-left: 3px solid var(--mia-accent-br); }
+      .mia-kpi.k-scout { border-left: 3px solid var(--mia-cyan); }
 
-      /* --- Gráfico de outcomes: cifras extraídas VERBATIM de las fuentes --- */
+      /* --- Gráfico de cifras --- */
       .mia-chart {
-        border: 1px solid var(--mia-line); border-radius: 12px;
-        padding: 14px 16px; margin: 12px 0; background: #fff;
-        box-shadow: 0 1px 2px rgba(26,26,26,.04);
+        border: 1px solid var(--mia-line); border-radius: 14px;
+        padding: 16px 18px; margin: 12px 0; background: var(--mia-bg-soft);
       }
       .mia-chart .oc-head {
-        font-family: var(--mia-mono); font-size: .72rem; font-weight: 600;
-        letter-spacing: .06em; text-transform: uppercase; color: var(--mia-slate);
-        display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 12px;
+        font-size: .82rem; font-weight: 700; color: var(--mia-ink);
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        margin-bottom: 10px;
       }
       .mia-chart .oc-note {
-        text-transform: none; letter-spacing: 0; font-weight: 500;
-        color: var(--mia-accent-br); font-family: var(--mia-font); font-size: .72rem;
+        font-family: var(--mia-mono); font-size: .66rem; font-weight: 500;
+        color: var(--mia-slate); text-transform: uppercase; letter-spacing: .05em;
       }
       .oc-row { display: flex; align-items: center; gap: 10px; margin: 7px 0; }
-      .oc-lbl {
-        flex: 0 0 104px; font-size: .8rem; font-weight: 600; color: var(--mia-ink);
-        display: flex; flex-direction: column; line-height: 1.15;
-      }
-      .oc-lbl .oc-sub { font-size: .66rem; font-weight: 500; color: var(--mia-slate); }
-      .oc-track {
-        position: relative; flex: 1 1 auto; height: 22px; border-radius: 6px;
-        background: var(--mia-track); overflow: hidden;
-      }
+      .oc-lbl { flex: 0 0 190px; font-size: .82rem; color: var(--mia-ink); }
+      .oc-sub { display: block; font-size: .68rem; color: var(--mia-slate); }
+      .oc-track { flex: 1; height: 9px; border-radius: 999px;
+                  background: var(--mia-track); overflow: hidden; }
       .oc-track > i {
-        display: block; height: 100%; border-radius: 6px;
-        background: linear-gradient(90deg, var(--mia-accent-br), var(--mia-teal));
+        display: block; height: 100%; border-radius: 999px;
+        background: linear-gradient(90deg, var(--mia-teal-d), var(--mia-teal));
+        box-shadow: 0 0 14px rgba(47,224,168,.55);
       }
-      .oc-val {
-        flex: 0 0 46px; text-align: right;
-        font-family: var(--mia-mono); font-size: .74rem; font-weight: 600; color: var(--mia-ink);
-      }
+      .oc-val { font-family: var(--mia-mono); font-size: .8rem; font-weight: 700;
+                color: var(--mia-teal); min-width: 52px; text-align: right; }
       .oc-doc {
-        flex: 0 0 auto; font-family: var(--mia-mono); font-size: .66rem; font-weight: 600;
-        color: var(--mia-teal-d); background: var(--mia-mint);
-        border: 1px solid #cde8d8; padding: 2px 7px; border-radius: 6px;
+        font-family: var(--mia-mono); font-size: .68rem; font-weight: 700;
+        color: var(--mia-teal); background: var(--mia-mint);
+        border: 1px solid rgba(47,224,168,.3); padding: 2px 7px; border-radius: 6px;
       }
-      /* Cabecera de grupo: referencia UNA vez el paper (Doc N + título) y debajo
-         van sus cifras SIN repetir la cita en cada fila. */
       .oc-group {
         display: flex; align-items: center; gap: 8px;
-        margin: 14px 0 6px; padding-top: 10px; border-top: 1px dashed var(--mia-line);
+        margin: 14px 0 6px; padding-top: 11px; border-top: 1px dashed var(--mia-line);
       }
       .oc-group:first-of-type { border-top: none; padding-top: 0; margin-top: 2px; }
       .oc-group-title {
@@ -223,82 +333,114 @@ st.markdown(
       }
       /* Sub-cabecera por TIPO de cifra. Separar eficacia de seguridad no es
          cosmético: un EASI-75 alto es bueno y una tasa de evento adverso alta es
-         mala; sin la etiqueta, dos barras iguales se leen igual. El color refuerza
-         la lectura (salvia = eficacia, ámbar = seguridad). */
+         mala; sin la etiqueta, dos barras iguales se leen igual. */
       .oc-kind {
         font-family: var(--mia-mono); font-size: .63rem; font-weight: 700;
-        letter-spacing: .09em; text-transform: uppercase;
-        margin: 9px 0 2px;
+        letter-spacing: .09em; text-transform: uppercase; margin: 10px 0 2px;
       }
       .oc-kind-efficacy { color: var(--mia-teal); }
       .oc-kind-safety   { color: var(--mia-amber); }
-      .oc-kind-safety ~ .oc-row .oc-track > i { background: var(--mia-amber); opacity: .75; }
+      .oc-kind-safety ~ .oc-row .oc-track > i {
+        background: linear-gradient(90deg, #b4790d, var(--mia-amber));
+        box-shadow: 0 0 14px rgba(251,191,36,.45);
+      }
+      .oc-kind-safety ~ .oc-row .oc-val { color: var(--mia-amber); }
 
       /* --- Paneles de estado (Scout / sin evidencia) --- */
       .mia-panel {
-        border-radius: 12px; padding: 14px 16px; margin: 10px 0;
-        font-size: .9rem; line-height: 1.5; border: 1px solid var(--mia-line);
+        border-radius: 14px; padding: 15px 17px; margin: 10px 0;
+        font-size: .9rem; line-height: 1.55;
+        background: var(--mia-bg-soft); border: 1px solid var(--mia-line);
+        color: var(--mia-ink);
       }
       .mia-panel .p-head {
-        font-family: var(--mia-mono); font-size: .7rem; font-weight: 600;
-        letter-spacing: .08em; text-transform: uppercase;
-        display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+        font-weight: 700; font-size: .8rem; letter-spacing: .04em;
+        text-transform: uppercase; margin-bottom: 6px;
+        display: flex; align-items: center; gap: 7px;
       }
-      .mia-panel .p-dot { width: 8px; height: 8px; border-radius: 999px; }
-      .mia-panel-scout { background: var(--mia-mint); border-color: #cde8d8; color: var(--mia-ink); }
-      .mia-panel-scout .p-dot { background: var(--mia-success-2); }
-      .mia-panel-empty { background: #fafafa; border-color: var(--mia-line); color: var(--mia-slate); }
-      .mia-panel-empty .p-dot { background: var(--mia-amber); }
+      .mia-panel .p-dot {
+        width: 8px; height: 8px; border-radius: 999px; display: inline-block;
+      }
+      .mia-panel-scout { border-left: 3px solid var(--mia-cyan); }
+      .mia-panel-scout .p-head { color: var(--mia-cyan); }
+      .mia-panel-scout .p-dot  { background: var(--mia-cyan); box-shadow: 0 0 10px var(--mia-cyan); }
+      .mia-panel-empty { border-left: 3px solid var(--mia-amber); }
+      .mia-panel-empty .p-head { color: var(--mia-amber); }
+      .mia-panel-empty .p-dot  { background: var(--mia-amber); box-shadow: 0 0 10px var(--mia-amber); }
 
-      /* --- Motivo de relevancia en las fuentes recuperadas-no-citadas --- */
-      .src-reason {
-        font-size: .8rem; color: var(--mia-slate); line-height: 1.45;
-        margin-top: 6px; padding: 7px 9px; border-radius: 8px;
-        background: var(--mia-bg-soft); border: 1px solid var(--mia-line);
-      }
-      .src-reason b { color: var(--mia-ink); font-weight: 600; }
-
-      /* --- Tira "cómo funciona": 3 pasos, patrón de los competidores --- */
-      .mia-how {
-        display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 2px;
-      }
-      .mia-how .step {
-        flex: 1 1 150px; border: 1px solid var(--mia-line); border-radius: 12px;
-        padding: 11px 13px; background: #fff;
-      }
-      .mia-how .step .s-n {
-        font-family: var(--mia-mono); font-size: .66rem; font-weight: 700;
-        color: var(--mia-teal); letter-spacing: .06em;
-      }
-      .mia-how .step .s-t { font-size: .86rem; font-weight: 600; color: var(--mia-ink); margin-top: 2px; }
-      .mia-how .step .s-d { font-size: .78rem; color: var(--mia-slate); margin-top: 3px; line-height: 1.4; }
-
-      /* --- Sección de bienvenida (estado vacío) --- */
+      /* --- Estado vacío / bienvenida --- */
       .mia-welcome {
-        border: 1px dashed var(--mia-line); border-radius: 16px;
-        padding: 22px 24px; background: var(--mia-bg-soft); margin-top: 14px;
+        border: 1px solid var(--mia-line); border-radius: 16px;
+        padding: 20px 22px; margin: 14px 0 8px;
+        background: var(--mia-bg-soft);
       }
-      .mia-welcome h3 { margin: 0 0 4px; font-size: 1.05rem; color: var(--mia-ink); }
-      .mia-welcome p  { margin: 0; color: var(--mia-slate); font-size: .9rem; }
+      .mia-welcome h3 { margin: 0 0 6px; font-size: 1.05rem; color: var(--mia-ink); }
+      .mia-welcome p  { margin: 0; font-size: .9rem; color: var(--mia-slate); line-height: 1.6; }
 
-      /* Botones de ejemplo un poco más suaves. */
-      div[data-testid="stButton"] > button {
-        border-radius: 10px; border: 1px solid var(--mia-line);
-        text-align: left; font-size: .88rem; font-weight: 500;
-        color: var(--mia-ink); background: #fff;
+      /* ====================================================================
+         WIDGETS NATIVOS DE STREAMLIT
+         config.toml tiñe los colores base, pero los bordes y superficies hay
+         que ajustarlos aquí para que no desentonen con el fondo aurora.
+         ==================================================================== */
+      section[data-testid="stSidebar"] {
+        background: rgba(10,17,26,.86);
+        border-right: 1px solid var(--mia-line);
+        backdrop-filter: blur(12px);
       }
-      div[data-testid="stButton"] > button:hover {
-        border-color: var(--mia-teal); color: var(--mia-teal-d);
+      div[data-testid="stExpander"] {
+        border: 1px solid var(--mia-line) !important;
+        border-radius: 14px !important;
+        background: rgba(14,23,35,.7) !important;
+        backdrop-filter: blur(8px);
       }
+      div[data-testid="stExpander"] summary:hover { color: var(--mia-teal) !important; }
+      /* El cuadro de chat crece solo según el texto, pero en el PRIMER render
+         Streamlit calcula mal su altura (medido: 182 px con una sola línea, que
+         debería ocupar 28) y se queda enorme hasta que haces clic. No lo provoca
+         este CSS —comprobado desactivándolo: el valor no cambia—, es un fallo de
+         medición del propio Streamlit. El tope lo acota: sigue creciendo para
+         preguntas de varias líneas, pero nunca se dispara. */
+      div[data-testid="stChatInput"] textarea {
+        color: var(--mia-ink) !important;
+        max-height: 92px !important;
+      }
+      .stButton > button {
+        border: 1px solid var(--mia-line);
+        background: var(--mia-bg-soft);
+        color: var(--mia-ink);
+        border-radius: 10px; font-size: .84rem;
+        transition: border-color .15s ease, box-shadow .15s ease;
+      }
+      .stButton > button:hover {
+        border-color: rgba(47,224,168,.55);
+        box-shadow: 0 0 18px -4px rgba(47,224,168,.5);
+        color: var(--mia-teal);
+      }
+      .stDownloadButton > button {
+        border: 1px solid rgba(47,224,168,.4);
+        background: rgba(47,224,168,.10);
+        color: var(--mia-teal); border-radius: 10px; font-weight: 600;
+      }
+      .stDownloadButton > button:hover {
+        background: rgba(47,224,168,.18);
+        box-shadow: 0 0 22px -6px rgba(47,224,168,.6);
+      }
+      div[data-testid="stChatMessage"] {
+        background: rgba(14,23,35,.55);
+        border: 1px solid var(--mia-line);
+        border-radius: 16px; padding: 14px 16px;
+        backdrop-filter: blur(6px);
+      }
+      hr, div[data-testid="stDivider"] { border-color: var(--mia-line) !important; }
 
-      /* --- Iconos SVG inline (estilo línea Material). Heredan color (currentColor)
-             y tamaño del texto; van EMBEBIDOS, sin ninguna llamada a red. --- */
+      /* --- Iconos SVG inline --- */
       .mia-ic {
         width: 1em; height: 1em;
         display: inline-block; vertical-align: -.14em;
         stroke: currentColor; fill: none;
       }
-      .mia-hero h1 .mia-ic { vertical-align: -.10em; margin-right: 6px; }
+      .mia-hero h1 .mia-ic { vertical-align: -.10em; margin-right: 8px;
+                             stroke: var(--mia-teal); }
       .mia-badges span .mia-ic { vertical-align: -.15em; margin-right: 5px; width: .95em; height: .95em; }
       .mia-panel .p-head .mia-ic { width: 1.05em; height: 1.05em; }
     </style>

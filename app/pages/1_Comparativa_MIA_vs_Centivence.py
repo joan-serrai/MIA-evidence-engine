@@ -56,98 +56,188 @@ EJEMPLOS = [
 st.markdown(
     """
     <style>
+      /* Paleta Aurora LSHC — misma que la página principal (ver streamlit_app.py).
+         Aquí el VIOLETA cobra sentido semántico: MIA = verde-azulado (producto,
+         local); Centivence = violeta/índigo (la línea generalista de contraste).
+         Los dos velos de la aurora sirven así para distinguir los dos motores. */
       :root {
-        --mia-teal:#3f6e66; --mia-teal-d:#2c524c; --mia-ink:#1a1a1a;
-        --mia-slate:#555; --mia-line:#eee; --mia-mint:#e8f5ee;
-        --mia-amber:#92600a; --mia-success:#1a7a3a;
-        --cen-slate:#5b6b8c; --cen-slate-d:#3f4c6b; --cen-bg:#f4f6fb;
+        --mia-bg:#070d14; --mia-bg-soft:#0e1723; --mia-bg-2:#132030;
+        --mia-teal:#2fe0a8; --mia-teal-d:#16b98a; --mia-cyan:#38bdf8;
+        --mia-green:#7ee787; --mia-violet:#8b7cf6; --mia-amber:#fbbf24;
+        --mia-ink:#e8f1f5; --mia-slate:#93a7b8;
+        --mia-line:rgba(148,180,200,.16); --mia-mint:rgba(47,224,168,.12);
+        --mia-success:#2fe0a8; --mia-track:rgba(148,180,200,.13);
+        --cen-slate:#8b7cf6; --cen-slate-d:#6d5de0; --cen-bg:rgba(139,124,246,.10);
         --mia-font:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
         --mia-mono:'JetBrains Mono','Cascadia Code',Consolas,ui-monospace,monospace;
       }
       html, body, [class*="css"], .stMarkdown { font-family: var(--mia-font); }
-      .block-container { padding-top: 2rem; max-width: 1180px; }
+      .block-container { padding-top: 2rem; max-width: 1200px; position: relative; z-index: 1; }
+      .stApp { background: var(--mia-bg); }
+
+      /* Fondo aurora (misma técnica que la página principal: radiales muy
+         difuminados, fijos, sin capturar clics). Aquí los tonos se reparten
+         izquierda-verde / derecha-violeta para acompañar a las dos columnas. */
+      .stApp::before {
+        content:""; position:fixed; inset:-20% -10% auto -10%; height:80vh;
+        z-index:0; pointer-events:none;
+        background:
+          radial-gradient(44% 40% at 20% 18%, rgba(47,224,168,.28) 0%, transparent 68%),
+          radial-gradient(42% 36% at 55% 10%, rgba(56,189,248,.20) 0%, transparent 66%),
+          radial-gradient(44% 40% at 84% 24%, rgba(139,124,246,.24) 0%, transparent 66%);
+        filter: blur(70px) saturate(125%);
+        animation: auroraDrift 46s ease-in-out infinite alternate;
+      }
+      @keyframes auroraDrift {
+        0%   { transform: translate3d(0,0,0) scale(1);      opacity:.92; }
+        50%  { transform: translate3d(3%,2%,0) scale(1.09); opacity:1;   }
+        100% { transform: translate3d(-3%,-1%,0) scale(1.03); opacity:.85; }
+      }
+      @media (prefers-reduced-motion: reduce) { .stApp::before { animation:none; } }
+      section[data-testid="stSidebar"] {
+        background: rgba(10,17,26,.86); border-right:1px solid var(--mia-line);
+        backdrop-filter: blur(12px); position:relative; z-index:1;
+      }
 
       .cmp-hero {
-        background: linear-gradient(150deg,#3f6e66 0%,#2c524c 100%);
-        border-radius: 18px; padding: 22px 26px; color:#fff; margin-bottom: 6px;
-        box-shadow: 0 10px 30px -12px rgba(63,110,102,.35);
+        position:relative; overflow:hidden;
+        background: linear-gradient(120deg, rgba(47,224,168,.15) 0%,
+                    rgba(56,189,248,.09) 50%, rgba(139,124,246,.16) 100%), var(--mia-bg-soft);
+        border:1px solid var(--mia-line);
+        border-radius:20px; padding:24px 28px; color:var(--mia-ink); margin-bottom:8px;
+        box-shadow: 0 18px 50px -24px rgba(47,224,168,.30), inset 0 1px 0 rgba(255,255,255,.06);
       }
-      .cmp-hero h1 { font-size:1.5rem; font-weight:800; margin:0; letter-spacing:-.02em; color:#fff; }
-      .cmp-hero p  { margin:6px 0 0; font-size:.92rem; opacity:.92; }
+      .cmp-hero::before {
+        content:""; position:absolute; inset:0 0 auto 0; height:2px;
+        background: linear-gradient(90deg, transparent, var(--mia-teal) 25%,
+                    var(--mia-cyan) 50%, var(--mia-violet) 75%, transparent);
+      }
+      .cmp-hero h1 {
+        font-size:1.55rem; font-weight:800; margin:0; letter-spacing:-.025em;
+        background: linear-gradient(100deg,#fff 0%, var(--mia-teal) 50%, var(--mia-violet) 100%);
+        -webkit-background-clip:text; background-clip:text;
+        -webkit-text-fill-color:transparent; color:var(--mia-teal);
+      }
+      .cmp-hero p { margin:8px 0 0; font-size:.92rem; color:var(--mia-slate); }
+      .cmp-hero p b { color:var(--mia-ink); }
 
-      /* Cabecera de cada columna (marca del modelo). */
-      .col-head { border-radius:14px; padding:12px 16px; margin:2px 0 12px; color:#fff; }
-      .col-head.mia { background:linear-gradient(135deg,#3f6e66,#2c524c); }
-      .col-head.cen { background:linear-gradient(135deg,#5b6b8c,#3f4c6b); }
-      .col-head .h-name { font-size:1.1rem; font-weight:800; letter-spacing:-.01em; }
-      .col-head .h-sub  { font-size:.74rem; opacity:.9; font-family:var(--mia-mono);
-                          text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
-      .col-head .h-sum  { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+      /* Cabecera de cada columna (marca del motor). */
+      .col-head { border-radius:16px; padding:14px 18px; margin:2px 0 12px;
+                  color:var(--mia-ink); border:1px solid var(--mia-line); }
+      .col-head.mia {
+        background: linear-gradient(135deg, rgba(47,224,168,.20), rgba(22,185,138,.08));
+        border-color: rgba(47,224,168,.35);
+        box-shadow: 0 0 30px -14px rgba(47,224,168,.7);
+      }
+      .col-head.cen {
+        background: linear-gradient(135deg, rgba(139,124,246,.20), rgba(109,93,224,.08));
+        border-color: rgba(139,124,246,.35);
+        box-shadow: 0 0 30px -14px rgba(139,124,246,.7);
+      }
+      .col-head .h-name { font-size:1.12rem; font-weight:800; letter-spacing:-.01em; }
+      .col-head.mia .h-name { color: var(--mia-teal); }
+      .col-head.cen .h-name { color: var(--mia-violet); }
+      .col-head .h-sub  { font-size:.72rem; color:var(--mia-slate); font-family:var(--mia-mono);
+                          text-transform:uppercase; letter-spacing:.06em; margin-top:3px; }
+      .col-head .h-sum  { margin-top:11px; display:flex; gap:8px; flex-wrap:wrap; }
       .col-head .h-chip {
-        background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3);
-        border-radius:999px; padding:3px 11px; font-size:.76rem; font-weight:700;
+        background:rgba(148,180,200,.10); border:1px solid var(--mia-line);
+        border-radius:999px; padding:3px 11px; font-size:.75rem; font-weight:700;
+        color:var(--mia-ink);
       }
-      .col-head .h-chip.ok  { background:rgba(34,197,94,.28); border-color:rgba(34,197,94,.5); }
-      .col-head .h-chip.no  { background:rgba(146,96,10,.30);  border-color:rgba(146,96,10,.55); }
+      .col-head .h-chip.ok { background:rgba(47,224,168,.18); border-color:rgba(47,224,168,.45);
+                             color:var(--mia-teal); }
+      .col-head .h-chip.no { background:rgba(251,191,36,.15); border-color:rgba(251,191,36,.40);
+                             color:var(--mia-amber); }
 
-      /* Tarjeta de un documento recuperado (rank). */
-      .rk { border:1px solid var(--mia-line); border-radius:12px; padding:12px 14px;
-            margin-bottom:10px; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-      .rk.hit  { border-left:4px solid var(--mia-success); }
-      .rk.miss { border-left:4px solid #d8d8d8; }
+      /* Tarjeta de documento recuperado. */
+      .rk { border:1px solid var(--mia-line); border-radius:14px; padding:13px 15px;
+            margin-bottom:10px; background:var(--mia-bg-soft); }
+      .rk.hit  { border-left:3px solid var(--mia-teal); }
+      .rk.miss { border-left:3px solid rgba(148,180,200,.25); }
       .rk-top  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-      .rk-rank { font-family:var(--mia-mono); font-weight:800; font-size:.82rem;
-                 color:#fff; background:var(--mia-slate); border-radius:6px; padding:1px 8px; }
-      .rk.hit  .rk-rank { background:var(--mia-teal); }
-      .rk-tag  { font-size:.72rem; font-weight:700; padding:1px 8px; border-radius:999px; }
-      .rk-tag.ok { color:var(--mia-success); background:var(--mia-mint); border:1px solid #cde8d8; }
-      .rk-tag.no { color:var(--mia-slate);  background:#f4f4f4;  border:1px solid var(--mia-line); }
-      .rk-conf { margin-left:auto; font-family:var(--mia-mono); font-size:.74rem;
+      .rk-rank { font-family:var(--mia-mono); font-weight:800; font-size:.8rem;
+                 color:var(--mia-slate); background:rgba(148,180,200,.12);
+                 border-radius:6px; padding:1px 8px; }
+      .rk.hit  .rk-rank { background:linear-gradient(120deg,var(--mia-teal-d),var(--mia-teal));
+                          color:#04231a; }
+      .rk-tag  { font-size:.71rem; font-weight:700; padding:1px 8px; border-radius:999px; }
+      .rk-tag.ok { color:var(--mia-teal); background:var(--mia-mint);
+                   border:1px solid rgba(47,224,168,.35); }
+      .rk-tag.no { color:var(--mia-slate); background:rgba(148,180,200,.08);
+                   border:1px solid var(--mia-line); }
+      .rk-conf { margin-left:auto; font-family:var(--mia-mono); font-size:.73rem;
                  font-weight:700; color:var(--mia-slate); }
       .rk-title { font-size:.92rem; font-weight:600; color:var(--mia-ink);
-                  margin:8px 0 6px; line-height:1.32; }
+                  margin:9px 0 6px; line-height:1.35; }
       .rk-drugs { display:flex; gap:5px; flex-wrap:wrap; margin:0 0 7px; }
-      .rk-drugs span { font-family:var(--mia-mono); font-size:.68rem; font-weight:500;
-                       background:var(--mia-mint); color:var(--mia-success);
-                       border:1px solid #cde8d8; padding:1px 7px; border-radius:999px; }
-      .rk-snip { font-size:.82rem; color:#444; line-height:1.45;
-                 border-left:3px solid var(--mia-line); padding:4px 0 4px 10px; margin:2px 0 8px; }
-      .rk-link { font-size:.78rem; font-weight:600; color:var(--mia-teal-d); text-decoration:none; }
+      .rk-drugs span { font-family:var(--mia-mono); font-size:.67rem; font-weight:500;
+                       background:var(--mia-mint); color:var(--mia-teal);
+                       border:1px solid rgba(47,224,168,.25); padding:1px 7px; border-radius:999px; }
+      .rk-snip { font-size:.82rem; color:#c3d4e0; line-height:1.5;
+                 border-left:2px solid rgba(47,224,168,.3); padding:4px 0 4px 10px; margin:2px 0 8px; }
+      .rk-link { font-size:.78rem; font-weight:600; color:var(--mia-teal); text-decoration:none; }
       .rk-link:hover { text-decoration:underline; }
 
-      /* Bloque de respuesta redactada (cuando el toggle está activo). */
-      .rk-answer { border:1px solid var(--mia-line); border-radius:12px;
-                   padding:12px 15px; margin:2px 0 14px; background:#fff;
-                   box-shadow:0 1px 2px rgba(15,23,42,.04); }
-      .rk-answer.mia { border-left:4px solid var(--mia-teal); }
-      .rk-answer.cen { border-left:4px solid var(--cen-slate); }
-      .rk-answer .a-head { font-family:var(--mia-mono); font-size:.66rem; font-weight:700;
-                           letter-spacing:.07em; text-transform:uppercase;
-                           color:var(--mia-slate); margin-bottom:7px; }
-      .rk-answer .a-body { font-size:.9rem; line-height:1.55; color:var(--mia-ink); }
+      /* Bloque de respuesta redactada. */
+      .rk-answer { border:1px solid var(--mia-line); border-radius:14px;
+                   padding:13px 16px; margin:2px 0 14px; background:var(--mia-bg-soft); }
+      .rk-answer.mia { border-left:3px solid var(--mia-teal); }
+      .rk-answer.cen { border-left:3px solid var(--mia-violet); }
+      .rk-answer .a-head { font-family:var(--mia-mono); font-size:.65rem; font-weight:700;
+                           letter-spacing:.08em; text-transform:uppercase;
+                           color:var(--mia-slate); margin-bottom:8px; }
+      .rk-answer .a-body { font-size:.9rem; line-height:1.6; color:var(--mia-ink); }
       .rk-answer .a-body p { margin:0 0 8px; }
-      /* Insignia de cita [Doc N] dentro de la respuesta redactada. */
-      .cmp-cite { display:inline-block; background:var(--mia-mint); color:var(--mia-teal-d);
-                  border:1px solid #cde8d8; font-size:.72rem; font-weight:700;
+      .cmp-cite { display:inline-block; background:var(--mia-mint); color:var(--mia-teal);
+                  border:1px solid rgba(47,224,168,.35); font-size:.72rem; font-weight:700;
                   padding:1px 6px; border-radius:6px; margin:0 1px; white-space:nowrap; }
 
-      .cmp-note { font-size:.8rem; color:var(--mia-slate); background:var(--mia-bg-soft,#fafafa);
-                  border:1px solid var(--mia-line); border-radius:10px; padding:10px 14px; margin:6px 0 2px; }
+      .cmp-note { font-size:.8rem; color:var(--mia-slate); background:var(--mia-bg-soft);
+                  border:1px solid var(--mia-line); border-radius:12px;
+                  padding:11px 15px; margin:6px 0 2px; }
+      .cmp-note b { color:var(--mia-ink); }
 
-      /* Banner del VEREDICTO por pregunta (qué embedding entendió mejor). */
-      .verdict { border-radius:14px; padding:14px 18px; margin:4px 0 14px; color:#fff; }
-      .verdict.win     { background:linear-gradient(135deg,#3f6e66,#2c524c); }
-      .verdict.tie     { background:linear-gradient(135deg,#5b6b8c,#3f4c6b); }
-      .verdict.abstain { background:#fafafa; color:var(--mia-slate); border:1px dashed #d6d6d6; }
-      .verdict .v-head { font-size:.7rem; font-weight:800; letter-spacing:.08em;
-                         text-transform:uppercase; opacity:.85; margin-bottom:4px; }
-      .verdict .v-text { font-size:1.02rem; font-weight:700; line-height:1.4; }
-      .verdict .v-agent{ font-size:.8rem; opacity:.9; margin-top:8px;
+      /* Banner del VEREDICTO por pregunta. */
+      .verdict { border-radius:16px; padding:15px 19px; margin:4px 0 14px;
+                 color:var(--mia-ink); border:1px solid var(--mia-line); }
+      .verdict.win {
+        background: linear-gradient(135deg, rgba(47,224,168,.20), rgba(56,189,248,.08));
+        border-color: rgba(47,224,168,.40);
+        box-shadow: 0 0 40px -18px rgba(47,224,168,.8);
+      }
+      .verdict.tie {
+        background: linear-gradient(135deg, rgba(139,124,246,.18), rgba(56,189,248,.08));
+        border-color: rgba(139,124,246,.38);
+      }
+      .verdict.abstain { background: var(--mia-bg-soft); border:1px dashed rgba(148,180,200,.3);
+                         color: var(--mia-slate); }
+      .verdict .v-head { font-size:.68rem; font-weight:800; letter-spacing:.09em;
+                         text-transform:uppercase; color:var(--mia-slate); margin-bottom:5px; }
+      .verdict .v-text { font-size:1.02rem; font-weight:700; line-height:1.45; }
+      .verdict .v-agent{ font-size:.8rem; color:var(--mia-slate); margin-top:9px;
                          font-family:var(--mia-mono); }
-      .verdict .v-metrics { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-      .verdict .v-chip { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
-                         border-radius:999px; padding:3px 11px; font-size:.75rem; font-weight:700; }
-      .verdict.abstain .v-chip { background:#fff; border-color:var(--mia-line); color:var(--mia-slate); }
+      .verdict .v-agent b { color:var(--mia-ink); }
+      .verdict .v-metrics { display:flex; gap:8px; flex-wrap:wrap; margin-top:11px; }
+      .verdict .v-chip { background:rgba(148,180,200,.10); border:1px solid var(--mia-line);
+                         border-radius:999px; padding:3px 11px; font-size:.74rem;
+                         font-weight:700; color:var(--mia-ink); }
+      .verdict.abstain .v-chip { background:transparent; }
+
+      /* Widgets nativos, a juego con el fondo oscuro. */
+      div[data-testid="stExpander"] {
+        border:1px solid var(--mia-line) !important; border-radius:14px !important;
+        background: rgba(14,23,35,.7) !important; backdrop-filter: blur(8px);
+      }
+      .stButton > button {
+        border:1px solid var(--mia-line); background:var(--mia-bg-soft);
+        color:var(--mia-ink); border-radius:10px; font-size:.82rem;
+        transition: border-color .15s ease, box-shadow .15s ease;
+      }
+      .stButton > button:hover {
+        border-color:rgba(47,224,168,.55); color:var(--mia-teal);
+        box-shadow:0 0 18px -4px rgba(47,224,168,.5);
+      }
     </style>
     """,
     unsafe_allow_html=True,

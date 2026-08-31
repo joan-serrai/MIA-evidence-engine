@@ -126,7 +126,7 @@ bronze  →  silver  →  chroma
 |--------|------|-----|
 | `src/ingestion.py`   | 1 | Descarga a `bronze`. `fetch_*` por (enfermedad+fármaco) precargan el corpus; `search_*` por texto libre las usa el Scout. Sesión `requests` con backoff en 429/5xx, `sleep(0.34)` por rate-limit de PubMed, `NCBI_API_KEY` opcional. |
 | `src/embeddings.py`  | 1 | **Capa de embeddings intercambiable** (bge ↔ MedCPT ↔ OpenAI). Interfaz única `embed_documents()` / `embed_query()`. Ver §4. |
-| `src/processing.py`  | 1 | `clean_and_chunk` normaliza CT(JSON)+PubMed(XML) a documento uniforme, dedup por `doc_id`, trocea **respetando frases**; `embed_chunks`; `index_in_chroma` (upsert por lotes). `index_new_bronze` indexa solo lo nuevo (lo usa el Scout). |
+| `src/processing.py`  | 1 | `clean_and_chunk` normaliza CT(JSON)+PubMed(XML) a documento uniforme, dedup por `doc_id`, trocea **respetando frases**; `embed_chunks`; `index_in_chroma` (upsert por lotes). `index_new_bronze` indexa solo lo nuevo (lo usa el Scout). **`_ct_results_text`** convierte el `resultsSection` de ClinicalTrials (eventos adversos + medidas de eficacia, por brazo) a prosa indexable — ver §9. |
 | `src/rag.py`         | 2 | **El corazón.** `retrieve` → `_build_context` (agrupa chunks por documento en `[Doc N]`, presupuesto de chars, extrae outcomes) → `_generate_answer` (OpenBioLLM, prompt "analista", guardián anti-degeneración + reintentos). Incluye **router de intención** (`detect_intent`) y **condensado de preguntas de seguimiento** (`condense_question`) para el chat multi-turno. **RAG estricto**: si la mejor similitud < umbral, NO llama al LLM. |
 | `src/citations.py`   | 2 | Post-proceso **determinista** de citas. Reparte cada `[Doc N]` a la frase que respalda (por solapamiento de términos); valida y **elimina citas fuera de rango** → *"cada cita apunta a una fuente real, siempre"*. |
 | `src/outcomes.py`    | 2 | Extrae **cifras verbatim** (EASI 75/90/100, IGA 0/1…) del texto con regex deterministas, etiquetadas con su `[Doc N]` → alimentan el gráfico de la UI **sin que el LLM invente números**. |
@@ -284,3 +284,55 @@ escribe el censo de TODO lo indexado:
 
 **Regla:** si vuelves a indexar o amplías el corpus, **re-ejecuta este script y commitea el CSV**.
 Es la única prueba de qué hay dentro del índice.
+
+---
+
+## 9. Materia prima: qué se coge de cada fuente (y qué NO)
+
+MIA **no lee papers completos**. Conviene tenerlo claro y declararlo en el TFM.
+
+| Fuente | Qué se descarga | Tamaño típico |
+|--------|-----------------|---------------|
+| **PubMed** | Solo el **abstract** (`efetch` con `rettype=abstract`). Nunca el texto completo. | ~1.850 chars/doc |
+| **ClinicalTrials.gov** | Ficha (`officialTitle` + `briefSummary` + `conditions`) **y**, desde el 1-sep-2026, el `resultsSection`. | hasta ~12.000 chars |
+
+El id de **PMC** solo se usa como *señal de acceso* (`access="open"` vs
+`"abstract_only"`), **nunca** para bajar el texto completo. No se hace scraping de PDFs.
+
+### 9.1 El `resultsSection` de ClinicalTrials (la mejor materia prima)
+
+La API ya lo devolvía en la misma petición que se hacía; simplemente se tiraba. Trae:
+- **`adverseEventsModule`** — eventos adversos con numerador/denominador reales (5/55),
+  **por brazo** (fármaco vs placebo), separando graves de leves y clasificados por
+  sistema orgánico. Es dato primario publicado por el promotor.
+- **`outcomeMeasuresModule`** — endpoints de eficacia con su valor por brazo.
+
+`_ct_results_text()` lo convierte a **prosa** (no a tabla) por dos razones:
+1. el LLM lee prosa; una tabla ASCII la interpreta mal;
+2. `outcomes.py` extrae las cifras con regex **por frase**, así que se escribe
+   **una afirmación por frase**, con el brazo de tratamiento primero y el comparador
+   en una frase aparte. Si fueran a la misma frase, el extractor cogería los dos
+   porcentajes sin saber cuál es de qué brazo → cifras engañosas.
+
+**Dos trampas que costaron encontrar:**
+- **El brazo de control NO se detecta buscando "placebo"** en cualquier posición: en los
+  ensayos doble ciego los brazos activos se llaman *"Dupilumab 300 mg + Oral Placebo"*. Se
+  comprueba primero si el nombre menciona un fármaco de `config.ALL_DRUGS`.
+- **Los títulos de los endpoints son verbosos** ("...(EASI) Response >=75 Percent...") y no
+  casan con el patrón corto de `outcomes.py`. `_canonical_endpoint()` los traduce a
+  "EASI 75" / "IGA 0/1" y lo escribe pegado al valor.
+
+### 9.2 Cobertura real (medida el 1-sep-2026)
+
+- 81 de 224 ensayos en bronze (36%) traen resultados → **5.845 filas** de eventos adversos.
+- Tras indexar: **76 de 189 ensayos (40%)** aportan cifras, **575 puntos de dato**
+  (129 de eficacia, 446 de seguridad). Antes: **cero**.
+- Texto completo de PubMed Central: solo **33%** del corpus sería descargable legalmente,
+  y cada paper pesa **×33** un abstract (~61.000 chars). Ver `CHANGELOG.md`.
+
+### 9.3 Limitación conocida
+
+Los documentos de CT.gov **rara vez ganan** a las revisiones de PubMed en el ranking: hay
+2.971 papers frente a 189 ensayos, y un abstract se parece más a una pregunta en lenguaje
+natural que la prosa de un registro. El dato está indexado y sale cuando la pregunta es de
+corte "ensayo", pero no domina. Mejorarlo pide **recuperación híbrida**, no más datos.

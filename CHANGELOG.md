@@ -25,6 +25,73 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-01 · Resultados de ClinicalTrials.gov e interfaz "Aurora LSHC"
+
+### Añadido — Capa 1: los resultados de los ensayos
+Hasta ahora, de cada ensayo solo se guardaba la ficha descriptiva (título +
+resumen + condiciones). El **hallazgo**: la MISMA respuesta de la API que ya se
+descargaba trae un `resultsSection` con los resultados tabulados, y se estaba
+tirando en `processing.py`. No hizo falta descargar nada: el dato llevaba meses
+en `data/bronze` — **81 de 224 ensayos (36%) con 5.845 filas de eventos adversos**.
+
+Es mejor materia prima que un abstract: trae numerador y denominador reales
+(5/55), viene **por brazo** (o sea, con su placebo al lado), separa eventos
+graves de leves y lo publica el promotor en un registro oficial.
+
+- `_ct_results_text()` y auxiliares en `processing.py`: convierten el módulo de
+  eventos adversos y las medidas de resultado a **prosa**, no a tabla. Dos
+  motivos: el LLM lee prosa, y `outcomes.py` extrae las cifras por frase. Se
+  escribe **una afirmación por frase**, con el brazo de tratamiento primero y el
+  comparador aparte — si fueran a la misma frase, el extractor cogería los dos
+  porcentajes sin saber cuál es de qué brazo.
+- `_canonical_endpoint()`: traduce los títulos verbosos de CT.gov
+  ("...(EASI) Response >=75 Percent...") al nombre corto ("EASI 75") que
+  `outcomes.py` sabe reconocer. Sin esto no se extraía ni una cifra de eficacia.
+
+### Corregido
+- **Detección del brazo de control.** Buscar "placebo" en cualquier posición del
+  nombre del brazo fallaba: en los ensayos doble ciego los brazos activos se
+  llaman *"Dupilumab 300 mg + Oral Placebo"*, así que TODOS salían como control y
+  no se extraía ni un dato. Ahora se comprueba primero si el brazo menciona un
+  fármaco conocido, y solo después el patrón de placebo (que además debe ir al
+  principio del nombre).
+- **Comillas rotas en los fragmentos.** El CSS decía `content: "\201C"`, pero ese
+  CSS vive dentro de una cadena de Python y ahí `\201` es un **escape octal**:
+  Python lo convertía en el carácter de control `0x81` y dejaba la "C" suelta, así
+  que cada fragmento empezaba por "▮C". Bug latente que venía del código original.
+- Tope de altura en el cuadro de chat. En el primer render Streamlit calcula mal
+  su altura (medido: 182 px para una línea que ocupa 28) y se queda enorme hasta
+  que haces clic. Comprobado que **no lo causa este CSS** —desactivándolo el valor
+  no cambia—; el tope lo acota sin impedir que crezca con varias líneas.
+
+### Cambiado — Interfaz "Aurora LSHC"
+- Tema oscuro con degradados difusos que evocan una aurora boreal, en los colores
+  del sector Life Sciences & Health Care: verde-azulado clínico, cian, verde salud
+  y violeta de apoyo. En la Comparativa el violeta cobra sentido semántico:
+  MIA = verde-azulado, Centivence = violeta.
+- Técnica: dos capas `position:fixed` con radiales **anchos y bajos** (elipses al
+  26% de alto, no círculos: una aurora cae en cortinas horizontales), `blur(78px)`
+  y una deriva muy lenta con desfases distintos, así que nunca repiten forma.
+- Regla de contraste que se respeta en todo el diseño: **la aurora vive solo en el
+  fondo y en los bordes**; todo lo que hay que leer va sobre superficie sólida. En
+  una herramienta clínica la legibilidad manda sobre el efecto.
+- Se respeta `prefers-reduced-motion`: la aurora se queda quieta si el sistema lo
+  pide, sin perder el degradado.
+
+### Medido
+- Corpus: 8.920 → **9.734 chunks**.
+- Ensayos con cifras extraíbles: 0 → **76 de 189 (40%)**, con **575 puntos de dato**
+  (129 de eficacia, 446 de seguridad).
+- Verificado en navegador: respuesta de 6 frases con **cada afirmación citada**,
+  fuentes desplegadas, sin errores de consola.
+- Limitación observada y declarada: los documentos de CT.gov **rara vez ganan** a
+  las revisiones de PubMed en el ranking (hay 2.971 papers frente a 189 ensayos, y
+  un abstract se parece más a una pregunta en lenguaje natural que la prosa de un
+  registro). El dato está dentro y sale cuando la pregunta es de corte "ensayo",
+  pero no domina. Mejorarlo pide recuperación híbrida, no más datos.
+
+---
+
 ## 2026-08-31 · Respuestas más desarrolladas, citas fiables e interfaz en inglés
 `6e9c34f`
 

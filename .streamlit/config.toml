@@ -1,11 +1,20 @@
 # Tema visual de MIA (Streamlit lo lee automáticamente al arrancar la app).
-# Paleta "Centivence": fondo claro, acento verde salvia, tinta casi negra.
+#
+# Paleta "Aurora LSHC": fondo oscuro profundo con acentos que recuerdan a una
+# aurora boreal, pero con los colores que se usan en Life Sciences & Health Care
+# (verde-azulado clínico, cian, verde salud y un violeta de apoyo). El verde
+# salvia original de Centivence sigue ahí, aclarado para que contraste sobre
+# oscuro: en un fondo negro, el #3f6e66 original no se leería.
+#
+# Estos valores tiñen los widgets NATIVOS de Streamlit (botones, inputs,
+# sidebar). El aspecto "aurora" en sí —los degradados difusos— se pinta con CSS
+# propio en app/streamlit_app.py, porque config.toml no admite gradientes.
 [theme]
-base = "light"
-primaryColor = "#3f6e66"          # salvia Centivence — botones, foco, acentos
-backgroundColor = "#FFFFFF"        # lienzo principal
-secondaryBackgroundColor = "#FAFAFA"  # barra lateral y bloques
-textColor = "#1A1A1A"              # tinta, alto contraste
+base = "dark"
+primaryColor = "#2fe0a8"              # verde-azulado brillante: acento principal
+backgroundColor = "#070d14"           # casi negro con matiz azul (cielo nocturno)
+secondaryBackgroundColor = "#0e1723"  # superficies elevadas (sidebar, bloques)
+textColor = "#e8f1f5"                 # blanco frío, alto contraste sobre el fondo
 font = "sans serif"
 
 [client]

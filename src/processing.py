@@ -70,8 +70,13 @@ def _parse_clinical_trials(path, drug):
             continue
         titulo = ident.get("officialTitle") or ident.get("briefTitle") or ""
         resumen = desc.get("briefSummary") or ""
-        # El "texto" útil de un ensayo = título + resumen + condiciones.
-        texto = _normalize_text(f"{titulo}. {resumen}. Conditions: {', '.join(conds)}")
+        # El "texto" útil de un ensayo = título + resumen + condiciones + RESULTADOS.
+        # Los resultados (eventos adversos y medidas de eficacia) vienen en la MISMA
+        # respuesta de la API que ya descargábamos, pero hasta ahora se tiraban: solo
+        # se guardaba la ficha descriptiva. Ver _ct_results_text.
+        resultados = _ct_results_text(estudio)
+        texto = _normalize_text(
+            f"{titulo}. {resumen}. Conditions: {', '.join(conds)}. {resultados}")
 
         docs.append({
             "source": "clinicaltrials",
@@ -88,6 +93,226 @@ def _parse_clinical_trials(path, drug):
             "access": "open",
         })
     return docs
+
+
+# --------------------------------------------------------------------------
+# Resultados de ClinicalTrials.gov  (eventos adversos + medidas de eficacia)
+# --------------------------------------------------------------------------
+# POR QUÉ ESTO EXISTE. Hasta ahora, de cada ensayo solo guardábamos la ficha
+# descriptiva (título + resumen + condiciones): la "portada". Pero la MISMA
+# respuesta de la API que ya descargábamos trae un `resultsSection` con los
+# resultados YA TABULADOS — y lo estábamos tirando. Medido sobre data/bronze:
+# 81 de 224 ensayos (36%) lo traían, con 5.845 filas de eventos adversos.
+#
+# Es la mejor materia prima del proyecto, mejor incluso que un abstract:
+#   - viene con numerador y denominador reales (5/55), no con prosa,
+#   - viene POR BRAZO, así que hay comparación contra placebo,
+#   - separa eventos graves de leves y los clasifica por sistema orgánico,
+#   - lo publica el promotor en un registro oficial: es dato primario.
+#
+# FORMATO DE SALIDA: prosa, no una tabla. Dos motivos. (1) El LLM lee prosa; una
+# tabla ASCII la interpreta mal. (2) `src/outcomes.py` extrae las cifras con
+# regex buscando "métrica … N%" en la misma frase, así que escribimos UNA
+# afirmación por frase, con el brazo de TRATAMIENTO primero y el comparador en
+# una frase aparte. Si metiéramos ambos en la misma frase, el extractor cogería
+# los dos porcentajes y no sabría cuál es de qué brazo → cifras engañosas.
+
+# Nº máximo de eventos NO graves que incluimos por ensayo (los graves van todos).
+# Un ensayo llega a listar 70+ eventos; los de frecuencia ínfima solo añaden ruido
+# y hacen crecer el documento. Nos quedamos con los más frecuentes, que es justo
+# lo que responde a "¿cuáles son los efectos adversos más comunes?".
+_CT_MAX_OTHER_EVENTS = 20
+
+
+# Un brazo de CONTROL empieza por placebo/vehículo. Buscar la palabra "placebo"
+# en cualquier posición NO vale: en los ensayos doble ciego (doble dummy) los
+# brazos activos se llaman "Dupilumab 300 mg + Oral Placebo up to Week 16", y con
+# la regla ingenua TODOS los brazos salían como control → no se extraía ni una
+# cifra. Se permite un adjetivo delante ("Matching Placebo", "Oral Placebo").
+_COMPARATOR_RE = re.compile(
+    r"^\s*(?:matching\s+|oral\s+|topical\s+|subcutaneous\s+|double[-\s]?dummy\s+)?"
+    r"(placebo|vehicle|control|sham)\b", re.IGNORECASE)
+
+
+def _is_comparator_arm(titulo):
+    """¿Es un brazo de control (placebo/vehículo) y no de fármaco activo?
+
+    Orden de comprobación: si el nombre del brazo menciona un fármaco conocido
+    del estudio, es ACTIVO pase lo que pase (aunque lleve "+ Placebo" detrás).
+    """
+    t = (titulo or "").lower()
+    if any(d.lower() in t for d in config.ALL_DRUGS):
+        return False
+    return bool(_COMPARATOR_RE.match(t))
+
+
+def _ct_event_rows(ae_module):
+    """Aplana el módulo de eventos adversos a filas manejables.
+
+    Devuelve [{term, organ, serious, arm, pct, n, at_risk, comparator}], donde
+    cada fila es el brazo de TRATAMIENTO con la tasa más alta para ese evento, y
+    'comparator' (si existe) los datos del brazo de control para el mismo evento.
+    """
+    grupos = {g.get("id"): (g.get("title") or "") for g in ae_module.get("eventGroups", [])}
+    filas = []
+    for clave, serio in (("seriousEvents", True), ("otherEvents", False)):
+        for ev in ae_module.get(clave, []) or []:
+            term = (ev.get("term") or "").strip()
+            if not term:
+                continue
+            tratamiento, control = [], []
+            for s in ev.get("stats", []) or []:
+                n, ar = s.get("numAffected"), s.get("numAtRisk")
+                if n is None or not ar:
+                    continue
+                dato = {"arm": grupos.get(s.get("groupId"), ""),
+                        "n": n, "at_risk": ar, "pct": round(n / ar * 100, 1)}
+                (control if _is_comparator_arm(dato["arm"]) else tratamiento).append(dato)
+            if not tratamiento:
+                continue
+            mejor = max(tratamiento, key=lambda d: d["pct"])
+            filas.append({
+                "term": term,
+                "organ": (ev.get("organSystem") or "").strip(),
+                "serious": serio,
+                **mejor,
+                "comparator": max(control, key=lambda d: d["pct"]) if control else None,
+            })
+    return filas
+
+
+def _ct_adverse_events_text(ae_module):
+    """Prosa con los eventos adversos: todos los graves + los N más frecuentes."""
+    filas = _ct_event_rows(ae_module)
+    if not filas:
+        return ""
+    graves = sorted([f for f in filas if f["serious"]], key=lambda f: -f["pct"])
+    otros = sorted([f for f in filas if not f["serious"]],
+                   key=lambda f: -f["pct"])[:_CT_MAX_OTHER_EVENTS]
+
+    def _frases(bloque, etiqueta):
+        if not bloque:
+            return ""
+        out = [f"{etiqueta}:"]
+        for f in bloque:
+            # Frase 1: el brazo de tratamiento (la que el extractor de cifras leerá).
+            org = f" ({f['organ']})" if f["organ"] else ""
+            out.append(f"{f['term']}{org} was reported in {f['pct']}% "
+                       f"({f['n']}/{f['at_risk']}) of participants receiving "
+                       f"{f['arm']}.")
+            # Frase 2: el comparador, SIN repetir el nombre del evento, para que la
+            # cifra del control no se atribuya al evento como si fuera del fármaco.
+            c = f["comparator"]
+            if c:
+                out.append(f"The corresponding rate on {c['arm']} was {c['pct']}% "
+                           f"({c['n']}/{c['at_risk']}).")
+        return " ".join(out)
+
+    partes = [_frases(graves, "Serious adverse events"),
+              _frases(otros, "Most frequent other adverse events")]
+    return " ".join(p for p in partes if p)
+
+
+# Los títulos de las medidas de resultado de CT.gov son largos y prosaicos:
+#   "Percentage of Participants Achieving Eczema Area and Severity Index (EASI)
+#    Response >=75 Percent (%) Improvement From Baseline at Week 12"
+# `outcomes.py` busca la forma corta ("EASI 75"), que ahí NO aparece, así que sin
+# esto no se extraía ni una cifra de eficacia. Traducimos el título al nombre
+# canónico del endpoint y lo escribimos pegado al valor.
+_ENDPOINT_RULES = [
+    ("EASI 100", (r"\beasi\b", r"\b100\s*(?:percent|%)")),
+    ("EASI 90",  (r"\beasi\b", r"(?:>=?\s*)?\b90\s*(?:percent|%)")),
+    ("EASI 75",  (r"\beasi\b", r"(?:>=?\s*)?\b75\s*(?:percent|%)")),
+    ("EASI 50",  (r"\beasi\b", r"(?:>=?\s*)?\b50\s*(?:percent|%)")),
+    ("SCORAD 75", (r"\bscorad\b", r"\b75\b")),
+    ("SCORAD 50", (r"\bscorad\b", r"\b50\b")),
+    # IGA 0/1 se escribe de mil formas: "Clear (0) or Almost Clear (1)", "0 or 1",
+    # "0/1". Con que aparezca IGA y cualquiera de esas variantes, es el mismo endpoint.
+    ("IGA 0/1",  (r"\biga\b", r"(clear\s*\(0\)|almost\s*clear|\b0\s*(?:or|/)\s*1\b)")),
+]
+
+
+def _canonical_endpoint(titulo):
+    """Nombre corto del endpoint ('EASI 75', 'IGA 0/1') o None si no se reconoce."""
+    t = (titulo or "").lower()
+    for nombre, patrones in _ENDPOINT_RULES:
+        if all(re.search(p, t) for p in patrones):
+            return nombre
+    return None
+
+
+def _ct_outcomes_text(om_module):
+    """Prosa con las medidas de resultado (eficacia) declaradas del ensayo.
+
+    Solo añadimos el símbolo '%' cuando la unidad ES un porcentaje: así las tasas
+    de respuesta reales (EASI-75, IGA 0/1…) las recoge `outcomes.py`, y un valor
+    en otra unidad (puntos de escala, ng/mL) NO se cuela como si fuera un %.
+    """
+    medidas = om_module.get("outcomeMeasures", []) or []
+    if not medidas:
+        return ""
+    out = []
+    for m in medidas[:6]:                       # tope: las 6 primeras (primarias antes)
+        titulo = (m.get("title") or "").strip()
+        if not titulo:
+            continue
+        unidad = (m.get("unitOfMeasure") or "").strip()
+        es_pct = "percent" in unidad.lower()
+        grupos = {g.get("id"): (g.get("title") or "") for g in m.get("groups", []) or []}
+        medidos = []
+        for cl in m.get("classes", []) or []:
+            for cat in cl.get("categories", []) or []:
+                for med in cat.get("measurements", []) or []:
+                    v = med.get("value")
+                    if v is None:
+                        continue
+                    medidos.append((grupos.get(med.get("groupId"), ""), v))
+        if not medidos:
+            out.append(f"{m.get('type','').title()} outcome measure: {titulo}.")
+            continue
+        trat = [x for x in medidos if not _is_comparator_arm(x[0])]
+        ctrl = [x for x in medidos if _is_comparator_arm(x[0])]
+        suf = "%" if es_pct else f" {unidad}" if unidad else ""
+        # El título va en SU PROPIA frase y el endpoint canónico + valor en otra.
+        # Así, si el extractor encuentra "EASI" dentro del título, su ventana se
+        # corta al acabar esa frase (sin cifras) y no inventa un dato; el valor
+        # bueno lo lee de la frase corta, donde está pegado al nombre del endpoint.
+        canon = _canonical_endpoint(titulo) if es_pct else None
+        out.append(f"{m.get('type','').title()} outcome measure: {titulo}.")
+        etiqueta = canon or "Value"
+        if trat:
+            arm, val = max(trat, key=lambda x: _num(x[1]))
+            out.append(f"{etiqueta}: {val}{suf} with {arm}.")
+        if ctrl:
+            arm, val = ctrl[0]
+            out.append(f"The corresponding value on {arm} was {val}{suf}.")
+    return (" ".join(out)) if out else ""
+
+
+def _num(v):
+    """float(v) tolerante: los valores de la API llegan como texto y a veces vacíos."""
+    try:
+        return float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return float("-inf")
+
+
+def _ct_results_text(estudio):
+    """Texto de resultados de UN ensayo (o cadena vacía si no publicó ninguno).
+
+    Solo ~36% de los ensayos tienen `resultsSection`: los que aún reclutan o no
+    han publicado no lo traen. En ese caso devolvemos "" y el documento queda
+    exactamente como antes — el cambio es puramente aditivo.
+    """
+    rs = (estudio or {}).get("resultsSection") or {}
+    if not rs:
+        return ""
+    partes = [
+        _ct_outcomes_text(rs.get("outcomeMeasuresModule", {}) or {}),
+        _ct_adverse_events_text(rs.get("adverseEventsModule", {}) or {}),
+    ]
+    cuerpo = " ".join(p for p in partes if p)
+    return f"Reported trial results. {cuerpo}" if cuerpo else ""
 
 
 def _parse_pubmed(path, drug):
