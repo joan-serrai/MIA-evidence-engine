@@ -34,8 +34,10 @@ Dos "marcas" recurrentes en el código y la UI:
   una carpeta sincronizada es lenta y propensa a corrupción. **No devuelvas el proyecto a OneDrive.**
 - **Windows · Python 3.12** en `.venv`. **Ejecuta SIEMPRE con** `./.venv/Scripts/python.exe`
   (no `python` a secas — el alias de Microsoft Store secuestra ese nombre).
-- **Es un repositorio git** (rama `master`, sin remoto). No hay framework de **tests** ni de
-  **lint** configurado. La "prueba" de cada módulo es su bloque `if __name__ == "__main__"` (ver §5).
+- **Es un repositorio git** (rama `master`). Desde el 3-sep-2026 hay **pytest** para las
+  funciones puras (`tests/test_pure.py`, 26 pruebas, sin Ollama ni Chroma) y un workflow de
+  GitHub Actions que las ejecuta. Los módulos con LLM siguen probándose con su bloque
+  `if __name__ == "__main__"` (ver §5). No hay lint configurado.
 - **Dependencias FIJADAS con `==`** (desde el 31-ago-2026). `requirements.txt` lleva las
   directas con comentarios; `requirements.lock.txt` es el `pip freeze` completo (135 líneas)
   para reproducir el entorno exacto. Antes usaban `>=` y al montar el proyecto en un equipo
@@ -70,6 +72,13 @@ Dos "marcas" recurrentes en el código y la UI:
 
 # FASE 5 — interfaz de chat (Streamlit)
 ./.venv/Scripts/python.exe -m streamlit run app/streamlit_app.py
+
+# PRUEBAS puras (guardianes, citas, cifras, perfiles de dominio): ~1 s
+./.venv/Scripts/python.exe -m pytest -q
+
+# OTRA ENFERMEDAD — crear un perfil de dominio y descargar/indexar su corpus (ver §10)
+./.venv/Scripts/python.exe build_corpus.py --disease "Plaque psoriasis" --synonym psoriasis --class "il17_biologics=secukinumab,ixekizumab" --endpoint "PASI 75" --max 50 --activate
+./.venv/Scripts/python.exe run_phase1.py --domain plaque_psoriasis   # reindexar un perfil ya creado
 ```
 
 > Doble clic en **`run.bat`** (que llama a `run.ps1`) hace lo mismo comprobando antes el
@@ -113,8 +122,12 @@ Dos "marcas" recurrentes en el código y la UI:
 ## 3. Arquitectura — el "big picture"
 
 ### 3.1 `config.py` es la ÚNICA fuente de verdad
-Enfermedad, fármacos, rutas, modelos, umbrales y endpoints viven **solo** ahí. El resto del
-código **no debe tener valores "a fuego"**: cambiar de patología = cambiar solo `config.py`.
+Modelos, rutas, umbrales y parámetros de RAG viven **solo** ahí. La **enfermedad, los fármacos,
+los mecanismos y los endpoints** ya no están escritos en `config.py`: los carga de un **perfil
+de dominio** (`domains/<slug>.json`, ver §10) y los expone con los nombres de siempre
+(`DISEASE`, `DRUGS`, `ALL_DRUGS`, `BRONZE_DIR`, `CHROMA_COLLECTION`…). El resto del código
+**no debe tener valores "a fuego"** y debe leer `config.X` **en el momento de usarlo**, no
+copiarlo al importar: la app cambia de dominio en caliente con `config.activate_domain()`.
 Muchos parámetros son **condicionales al backend de embeddings activo** (colección, métrica de
 distancia, umbral) — ver §4.
 
@@ -149,7 +162,10 @@ bronze  →  silver  →  chroma
 | `app/pages/1_Comparativa_MIA_vs_Centivence.py` | 5 | Página lado a lado: qué recupera MedCPT (MIA) vs OpenAI (Centivence), con **banner de veredicto** por pregunta y expander del benchmark agregado. |
 
 ### 3.4 Scripts raíz (fuera de `src/`, orquestan o mantienen)
-- `run_phase1.py` — orquesta ingesta→procesado→indexado.
+- `build_corpus.py` — **crea un perfil de dominio nuevo** (otra patología) y descarga, indexa y
+  censa su corpus de una vez. Es la puerta de entrada para usar MIA fuera de la dermatitis atópica.
+- `run_phase1.py` — orquesta ingesta→procesado→indexado (`--domain <slug>` para otro perfil).
+- `tests/test_pure.py` — pruebas pytest de las funciones puras (sin Ollama ni Chroma).
 - `check_setup.py` — diagnóstico de entorno (no instala nada).
 - `run.ps1` / `run.bat` — lanzador de un clic (verifica `.venv`, avisa si Ollama no está, abre la app).
 - `ver_db.py` — inspecciona ChromaDB (censo, ejemplos, búsqueda real).
@@ -235,6 +251,21 @@ Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respue
 - **Windows / codificación**: fuerza `sys.stdout.reconfigure(encoding="utf-8")` al inicio y lee/escribe
   archivos con `encoding="utf-8"` (la consola usa cp1252 por defecto y rompe emojis/acentos). Mantén
   este patrón en cualquier script nuevo.
+- **Un guardián demasiado agresivo tira respuestas buenas.** Medido el 3-sep-2026: a
+  temperatura 0 OpenBioLLM abre la pregunta de demo con *"The Answer is: Dupilumab is
+  effective…"* seguido de prosa correcta. Rechazar la salida por ese prefijo y reintentar con
+  más temperatura hacía que el modelo **se rindiera** (*"the provided CONTEXT does not contain
+  a specific question"*), y esa rendición pasaba todos los filtros → 4 de 6 ejecuciones
+  devolvían basura o nada. Regla: **recortar** el tic de examen (`_strip_exam_prefix`), y
+  detectar la rendición total (`_GIVEUP_RE`) como degeneración. Cualquier guardián nuevo se
+  prueba con casos positivos Y negativos en `tests/test_pure.py`.
+- **La app renderiza HTML del LLM con `unsafe_allow_html=True`**: todo texto que venga del
+  modelo o de un abstract pasa por `html.escape` antes (`_highlight_citations`). Sin eso, un
+  `<script>` colado en un abstract se ejecutaría en el navegador.
+- **Cambiar de dominio en caliente exige vaciar cachés**: `rag._COLLECTION`,
+  `compare._COLLECTIONS`, el `st.cache_data` del estado. Los módulos que derivan algo del
+  dominio (`outcomes`, `processing`, `triplet_agent`) lo recalculan solos comparando
+  `config.DOMAIN_SLUG`.
 - **Acceso "paper de pago"**: PubMed da el abstract gratis, pero el texto completo puede ser de pago.
   Señal fiable y gratuita: si hay id de **PMC** → `access="open"`; si solo DOI → `access="abstract_only"`
   y MIA lo avisa. **No se hace scraping del PDF**: solo se señala que existe.
@@ -244,8 +275,10 @@ Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respue
 ## 7. Estado y hoja de ruta
 
 Las **cinco fases están implementadas y probadas** de punta a punta, más la capa **MIA 1.0**
-(informe exportable, panel de estado, robustez, lanzador). La migración a **MedCPT** está
-completa (inner-product, umbral 66.0, 8.920 chunks / 768 dim).
+(informe exportable, panel de estado, robustez, lanzador) y, desde el 3-sep-2026, los
+**perfiles de dominio** (§10). La migración a **MedCPT** está completa (inner-product, umbral
+66.0, 768 dim). El índice tiene **9.734 chunks** en las colecciones MedCPT y OpenAI (las cifras
+de 8.920 de los documentos antiguos son de antes de indexar los resultados de CT.gov).
 
 La tesis se valida en **dos capas**:
 - **Capa 1 — comprensión semántica** (`data/semantics_summary.csv`): MedCPT 0.833 vs OpenAI
@@ -344,3 +377,32 @@ Los documentos de CT.gov **rara vez ganan** a las revisiones de PubMed en el ran
 2.971 papers frente a 189 ensayos, y un abstract se parece más a una pregunta en lenguaje
 natural que la prosa de un registro. El dato está indexado y sale cuando la pregunta es de
 corte "ensayo", pero no domina. Mejorarlo pide **recuperación híbrida**, no más datos.
+
+---
+
+## 10. Perfiles de dominio (usar MIA con otra enfermedad)
+
+Cada patología es un archivo `domains/<slug>.json`:
+
+| Clave | Qué es | Quién la usa |
+|-------|--------|--------------|
+| `disease`, `synonyms` | Nombre y sinónimos. `config.DISEASE_QUERY` = `(X OR Y)` si hay sinónimos | `ingestion.run`, `scout.run_scout` |
+| `drug_classes` {clase: [fármacos]}, `class_labels` | Fármacos por clase. `DRUGS` = todos; `BIOLOGICS`/`JAK_INHIBITORS` son alias de `biologics`/`jak_inhibitors` (vacíos si no existen) | ingesta, `_is_comparator_arm`, `triplet_agent` |
+| `extra_drugs` | Se etiquetan si aparecen; no se descargan | `ALL_DRUGS` |
+| `mechanisms` {mecanismo: [fármacos]} | Fallback determinista del catalogador de tripletes | `triplet_agent`, `verdict` |
+| `efficacy_endpoints` ["PASI 75", …] | Cifras a extraer. `config.endpoint_spec` deriva el regex del abstract y los patrones del título de CT.gov | `outcomes`, `processing._canonical_endpoint` |
+| `safety_terms` | Eventos adversos propios del dominio (los genéricos ya están en `outcomes.py`) | `outcomes` |
+| `endpoint_examples` | Texto que se inyecta en el prompt del LLM ("e.g. PASI 75, sPGA 0/1") | `rag` |
+| `extra_queries` | Búsquedas libres extra (mecanismos) en la ingesta | `ingestion.run` |
+| `example_questions`, `mechanism_questions` | Botones de ejemplo de la app y de la página de comparación | Streamlit |
+| `legacy_collections` | Solo el perfil original: conserva `mia_evidence_*` y `data/bronze` en la raíz | `config.collection_name` |
+
+**Aislamiento**: cada perfil tiene su colección (`mia_<slug>_<backend>`), su bronze
+(`data/bronze/<slug>/`), su silver y su censo (`data/corpus_manifest_<slug>.csv`). El perfil
+original no cambia de sitio ni de nombre, así que el índice del TFM y las evaluaciones siguen
+valiendo. **Perfil activo**: `MIA_DOMAIN` (env/.env) > `domains/active.txt` > `atopic_dermatitis`.
+
+**Lo que NO se generaliza solo** (y hay que decir en el TFM): el umbral 66.0 se calibró en
+dermatitis atópica (comprobar con `evaluate_sources.py`); los golden sets de las evaluaciones
+son de dermatitis atópica; el corpus del perfil original se construyó en parte con un export
+manual perdido (§8), mientras que un perfil nuevo es 100% regenerable con `build_corpus.py`.

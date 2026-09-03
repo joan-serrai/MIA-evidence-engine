@@ -80,8 +80,11 @@ _ANSWER_SYSTEM = (
     "key finding first, then the supporting evidence — comparing efficacy, "
     "safety or populations across documents when the CONTEXT allows — and close "
     "with the practical implication or next step that the evidence justifies. "
+    "Where several documents cover the same ground, make their relation explicit: "
+    "which ones converge, and where they diverge and by how much. A reader must "
+    "be able to see which paper said what, never a blur of 'studies show'. "
     "When you report a result, give the specific figure — the named endpoint "
-    "(e.g. EASI-75, IGA 0/1, itch NRS), its value, the timepoint and the "
+    "(e.g. {endpoints}), its value, the timepoint and the "
     "population — whenever the CONTEXT provides it, instead of vague words like "
     "'effective'. Compare two drugs directly only if the CONTEXT contains a "
     "head-to-head study; if the figures come from separate studies, say the "
@@ -127,8 +130,8 @@ _INTENT_PATTERNS = [
 # Modificador que se AÑADE al system prompt según la intención detectada.
 _INTENT_MODIFIERS = {
     "efficacy": (
-        "FOCUS: Lead with the efficacy outcome — the named endpoint (e.g. EASI-75, "
-        "IGA 0/1, itch NRS), its value, timepoint and population as given in the CONTEXT."),
+        "FOCUS: Lead with the efficacy outcome — the named endpoint (e.g. {endpoints}), "
+        "its value, timepoint and population as given in the CONTEXT."),
     "safety": (
         "FOCUS: Lead with adverse events — their type, frequency, severity and "
         "discontinuation rate — and surface any serious or class-level safety signal "
@@ -276,6 +279,12 @@ _TASK_DIRECTIVE = (
     "single sentence.\n"
     "- Put ONE self-contained claim in each sentence, so each sentence traces to "
     "one document. Never merge findings from different studies into one sentence.\n"
+    "- Say WHOSE finding it is: open the sentence with the study's design and "
+    "population as the CONTEXT gives them — 'a meta-analysis of adults', 'a "
+    "pediatric trial', 'a real-world review' — instead of 'multiple studies'.\n"
+    "- Take your sentences from DIFFERENT documents, and when two of them cover "
+    "the same endpoint say plainly whether they agree or differ: 'a pediatric "
+    "trial reported A, whereas a meta-analysis in adults found B'.\n"
     "- Name the specific items the CONTEXT gives — adverse events by name, "
     "endpoints, numeric values, populations, timepoints. Never write a vague "
     "summary such as 'adverse events occurred' or 'showed improvement'.\n"
@@ -316,7 +325,66 @@ def _build_user_prompt(contexto, question, intent=None):
 # Cita real: acepta [Doc 1], [Doc1], rangos [Doc 1-3] y AGRUPADAS [Doc 1, Doc 2, 3].
 # (Antes exigía "[Doc 1]" con ] tras el número y rechazaba citas agrupadas válidas.)
 _CITATION_RE = re.compile(r"\[doc[^\]]*\d", re.IGNORECASE)
-_EXAM_RE = re.compile(r"^(the answer is|answer:)\s*(yes|no|true|false|[a-e])\b")
+# MODO EXAMEN. OpenBioLLM está afinado con preguntas tipo USMLE y a veces arranca
+# como si estuviera corrigiendo un test. El patrón ANTERIOR exigía que tras "the
+# answer is" viniera yes/no/true/false/A-E, así que se le colaba el caso REAL medido
+# el 1-sep-2026 con "What is the efficacy of dupilumab...?": la respuesta empezó con
+# "The Answer is: Dupilumab is effective in treating atopic dermatitis…" — el mismo
+# tic de examen, pero seguido de prosa normal, así que pasaba el filtro intacto.
+# Se tolera el adorno markdown inicial ("**The answer is:**") y el rodeo
+# "the answer to this question is", que el modelo también usa.
+#
+# CORRECCIÓN (3-sep-2026). La versión anterior DESCARTABA toda respuesta que abriera
+# así y reintentaba con más temperatura. Medido 6 veces con la pregunta de demo
+# ("What is the efficacy of dupilumab…?"): a temperatura 0 el modelo SIEMPRE abre
+# con "The Answer is: Dupilumab is effective…" seguido de prosa correcta; al subir
+# la temperatura se rinde ("The provided CONTEXT does not contain a specific
+# question") y esa rendición pasaba todos los guardianes → 4 de 6 ejecuciones
+# devolvían basura o nada. Tirar una respuesta buena por su primera palabra es un
+# mal negocio: ahora el PREFIJO se RECORTA (`_strip_exam_prefix`) y solo se
+# considera degenerado el modo examen "puro" — cuando tras el prefijo solo queda
+# un yes/no/true/false o una letra de test (`_EXAM_BARE_RE`).
+_EXAM_PREFIX_RE = re.compile(
+    r"^[\s*_#>\-]*"                                   # viñetas/negritas markdown
+    r"(?:the\s+answer(?:\s+to\s+[^.:]{0,60})?\s+is\b"  # "the answer (to X) is…"
+    r"|answer\b)\s*[:\-]?[\s*_]*",                     # "Answer:" / "Answer -"
+    re.IGNORECASE,                                     # (\b: no tocar "Answering…")
+)
+_EXAM_BARE_RE = re.compile(r"^(?:yes|no|true|false|[a-e])\b[.!]?\s*$", re.IGNORECASE)
+# Compatibilidad: sigue existiendo un _EXAM_RE que detecta la apertura (lo usan
+# scripts de diagnóstico), pero ya NO descarta la respuesta por sí solo.
+_EXAM_RE = _EXAM_PREFIX_RE
+
+# RENDICIÓN. Cuando la temperatura sube, el 8B a veces deja de responder y pide
+# que le den "la pregunta" o "más detalles" — aunque el CONTEXT tiene 10.000
+# caracteres sobre el fármaco y la QUESTION está justo debajo. Es una respuesta
+# vacía disfrazada de prosa, y se devolvía al usuario como si fuera la respuesta.
+# OJO: no confundir con la abstención LEGÍTIMA ("the evidence does not report
+# discontinuation rates"), que el prompt pide y que sí debe pasar. Lo que se caza
+# aquí es la rendición TOTAL: pedir la pregunta, pedir más información, o decir
+# en una o dos frases que el contexto no sirve, sin nombrar qué falta.
+_GIVEUP_RE = re.compile(
+    r"(?:does\s+not\s+(?:contain|include|provide)\s+(?:a\s+)?(?:specific\s+)?(?:question|task)"
+    r"|please\s+provide\s+(?:more|the\s+necessary|a\s+specific|additional)"
+    r"|clarify\s+your\s+expectations"
+    r"|(?:context|information)\s+(?:provided\s+)?is\s+insufficient\s+(?:for|to)\s+answer)",
+    re.IGNORECASE,
+)
+
+
+def _strip_exam_prefix(text):
+    """Quita la apertura tipo examen ("The Answer is:", "Answer -") y devuelve el
+    resto. Si tras el prefijo no queda nada, devuelve "" (que `_looks_degenerate`
+    descarta por corta). Determinista y conservador: solo toca el arranque."""
+    if not text:
+        return text
+    m = _EXAM_PREFIX_RE.match(text)
+    if not m:
+        return text
+    resto = text[m.end():].strip()
+    # Tras "The answer is" puede venir la respuesta en mayúscula inicial ("Dupilumab
+    # is effective…") o en minúscula ("a meta-analysis…"): la capitalizamos.
+    return (resto[:1].upper() + resto[1:]) if resto else ""
 # El modelo a veces REGURGITA el bloque CONTEXT en vez de responder (copia
 # "[Doc N] (pubmed:12345) Título…"). Esos ids de fuente SOLO existen en el
 # contexto, nunca en una respuesta redactada → si aparecen, está degenerando.
@@ -353,7 +421,12 @@ def _looks_degenerate(text):
     low = t.lower()
     if "[doc n]" in low:                    # copió el placeholder literal
         return True
-    if _EXAM_RE.match(low):                  # "the answer is yes/no/A…"
+    if _EXAM_BARE_RE.match(_strip_exam_prefix(t)):  # "the answer is yes/no/A…" a secas
+        return True
+    # Rendición total ("please provide the question…"): solo cuenta como
+    # degenerada si es TODA la respuesta (≤ 2 frases). En una respuesta larga, una
+    # frase de abstención parcial es legítima y se conserva.
+    if _GIVEUP_RE.search(t) and _count_sentences(t) <= 2:
         return True
     if _CONTEXT_ECHO_RE.search(t):           # regurgitó el bloque CONTEXT
         return True
@@ -407,7 +480,10 @@ def _build_system_prompt(intent):
     personalización nunca puede debilitar la integridad de la respuesta.
     """
     modificador = _INTENT_MODIFIERS.get(intent, "")
-    return f"{_ANSWER_SYSTEM}\n\n{modificador}" if modificador else _ANSWER_SYSTEM
+    texto = f"{_ANSWER_SYSTEM}\n\n{modificador}" if modificador else _ANSWER_SYSTEM
+    # Los ejemplos de endpoint ("EASI-75, IGA 0/1…") dependen de la patología: se
+    # toman del perfil de dominio activo (config.ENDPOINT_EXAMPLES), no van a fuego.
+    return texto.replace("{endpoints}", config.ENDPOINT_EXAMPLES)
 
 
 def _generate_answer(contexto, question, retries=3, intent=None):
@@ -452,6 +528,10 @@ def _generate_answer(contexto, question, retries=3, intent=None):
         salida = _strip_context_talk(salida)
         if _looks_degenerate(salida):
             continue
+        # Apertura de examen ("The Answer is: …"): se recorta, no se descarta (ver
+        # nota junto a _EXAM_PREFIX_RE). Se hace DESPUÉS del guardián para que el
+        # modo examen puro (solo "yes/no") siga cayendo en el reintento.
+        salida = _strip_exam_prefix(salida)
         # Válida, pero ¿desarrollada? Pedimos 5-9 frases y el 8B tiende a
         # despachar en 1-3. Si se queda corta NO la tiramos: la guardamos y
         # reintentamos con más temperatura, que suele soltarle la lengua. Al

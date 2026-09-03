@@ -231,7 +231,8 @@ st.markdown(
         font-size: .72rem; font-weight: 700; letter-spacing: .04em;
         color: var(--mia-slate); text-transform: uppercase;
       }
-      .src-sim { margin-left: auto; font-size: .74rem; font-weight: 700; }
+      /* NOTA: aquí vivían .src-sim (badge "% match") y .src-bar (barra de
+         afinidad). Se retiraron el 1-sep-2026 — ver _render_sources. */
       .src-title {
         font-size: .98rem; font-weight: 600; color: var(--mia-ink);
         margin: 10px 0 6px; line-height: 1.38;
@@ -254,10 +255,6 @@ st.markdown(
         background: rgba(47,224,168,.10); color: var(--mia-teal);
         border: 1px solid rgba(47,224,168,.25); padding: 2px 8px; border-radius: 999px;
       }
-      .src-bar { height: 5px; border-radius: 999px; background: var(--mia-track);
-                 overflow: hidden; margin: 8px 0 10px; }
-      .src-bar > i { display: block; height: 100%; border-radius: 999px;
-                     box-shadow: 0 0 12px currentColor; }
       .src-reason {
         font-size: .83rem; color: var(--mia-slate); background: rgba(148,180,200,.06);
         border: 1px solid var(--mia-line); border-radius: 10px;
@@ -560,7 +557,40 @@ with st.sidebar:
         _emb_label = config.EMBEDDING_MODEL
     st.caption(f":material/tag: Embeddings: `{_emb_label}`")
     st.divider()
-    st.caption(f":material/coronavirus: Disease: **{config.DISEASE}**")
+    # --- Perfil de dominio (patología) ---------------------------------------
+    # MIA ya no está atada a la dermatitis atópica: cada patología es un perfil en
+    # domains/<slug>.json con su propio corpus (colección de ChromaDB). Cambiar
+    # aquí re-activa el perfil EN CALIENTE: config recalcula sus valores y se
+    # vacían las cachés que dependían del dominio (colección abierta en rag,
+    # colecciones de la comparativa, estado del sistema). Se persiste en
+    # domains/active.txt para que la próxima ejecución arranque en el mismo.
+    st.subheader(":material/coronavirus: Disease profile")
+    _domains = config.list_domains()
+    _labels = {}
+    for _slug in _domains:
+        try:
+            _labels[_slug] = config.load_domain(_slug)["disease"]
+        except Exception:  # noqa: BLE001 — un perfil roto no debe tumbar la app
+            _labels[_slug] = _slug
+    _sel = st.selectbox(
+        "Active profile", _domains,
+        index=_domains.index(config.DOMAIN_SLUG) if config.DOMAIN_SLUG in _domains else 0,
+        format_func=lambda s: f"{_labels.get(s, s)}  ({s})",
+        help="Each profile has its own disease, drugs, endpoints and indexed corpus. "
+             "Create a new one with:  python build_corpus.py --disease \"…\" --drug …",
+    )
+    if _sel != config.DOMAIN_SLUG:
+        config.activate_domain(_sel, persist=True)
+        rag._COLLECTION = None                 # la colección abierta era del otro dominio
+        try:
+            from src import compare
+            compare._COLLECTIONS.clear()
+        except Exception:  # noqa: BLE001
+            pass
+        _cached_status.clear()
+        st.session_state.messages = []         # la conversación era sobre otra patología
+        st.rerun()
+    st.caption(f"{len(config.DRUGS)} drugs · corpus `{config.CHROMA_COLLECTION}`")
     st.caption(f":material/tune: Evidence threshold: {config.SIMILARITY_THRESHOLD}")
 
     # --- Estado del sistema: semáforos reales (Ollama / modelo / corpus) ---
@@ -596,8 +626,16 @@ with st.sidebar:
 # 3) Utilidades de presentación
 # ==========================================================================
 def _highlight_citations(texto: str) -> str:
-    """Convierte las citas '[Doc N]' del modelo en insignias visuales."""
-    return re.sub(r"\[Doc\s*(\d+)\]", r'<span class="cite">Doc \1</span>', texto)
+    """Convierte las citas '[Doc N]' del modelo en insignias visuales.
+
+    SEGURIDAD (3-sep-2026): el texto se ESCAPA antes de insertar el HTML de las
+    insignias. La respuesta la redacta el LLM a partir de abstracts descargados de
+    internet; si un documento (o el propio modelo) colara una etiqueta HTML o un
+    <script>, `unsafe_allow_html=True` la ejecutaría en el navegador (XSS).
+    `src/report.py` ya escapaba; la app no.
+    """
+    seguro = html.escape(texto or "")
+    return re.sub(r"\[Doc\s*(\d+)\]", r'<span class="cite">Doc \1</span>', seguro)
 
 
 def _source_type_label(source: str) -> str:
@@ -621,31 +659,13 @@ def _id_label(source: str, doc_id: str) -> str:
     return doc_id
 
 
-def _confidence_pct(sim: float) -> int:
-    """Convierte la 'similarity' cruda en un % de confianza 0-100 para la UI.
-
-    CONVENCIÓN DOCUMENTADA (importante para el TFM): con MedCPT la similarity NO
-    es un coseno 0-1, sino un PRODUCTO ESCALAR (~55-75; ver config: relevantes
-    ~70-73, ajenos ~56-64, umbral de evidencia 66). Lo calibramos linealmente a
-    0-100% con la banda medida (55 → 0%, 80 → 100%) para que sea legible. NO es
-    una probabilidad ni una 'precisión/veracidad': es una CONFIANZA DE
-    RECUPERACIÓN relativa. Con bge (coseno) el valor ya es 0-1 → solo ×100.
-    Con esta escala, el umbral de evidencia (66) equivale a ~44%.
-    """
-    if getattr(config, "EMBEDDING_BACKEND", "") == "medcpt":
-        pct = (sim - 55.0) / (80.0 - 55.0) * 100.0
-    else:
-        pct = sim * 100.0
-    return int(round(max(0.0, min(100.0, pct))))
-
-
-def _conf_color(pct: int) -> str:
-    """Color según el % de confianza calibrado (~44% = umbral de evidencia)."""
-    if pct >= 60:
-        return "#1a7a3a"   # verde éxito Centivence
-    if pct >= 44:
-        return "#3f6e66"   # salvia (por encima del umbral de evidencia)
-    return "#92600a"       # ámbar cálido (flojo)
+# RETIRADAS el 1-sep-2026: `_confidence_pct` (similitud cruda → % legible, con la
+# banda medida 55→0%, 80→100%) y `_conf_color` (verde/salvia/ámbar según ese %).
+# Ya no se pinta ningún % de afinidad en la página de respuesta, así que ambas
+# quedaban muertas. La calibración NO se ha perdido: sigue viva en
+# `src/compare.py::_confidence_pct`, que es donde tiene sentido enseñarla — la
+# página de comparación MedCPT vs OpenAI trata precisamente de la CALIDAD DE
+# RECUPERACIÓN, y ahí el número es el objeto de estudio, no un adorno.
 
 
 def _render_sources(sources):
@@ -658,9 +678,13 @@ def _render_sources(sources):
     with st.expander(f"Cited sources ({len(sources)})",
                      icon=":material/menu_book:", expanded=True):
         for f in sources:
-            sim = float(f.get("similarity", 0) or 0)
-            pct = _confidence_pct(sim)
-            color = _conf_color(pct)
+            # Aquí NO se muestra ningún "% de afinidad". La similitud sigue
+            # existiendo por dentro (ordena el ranking y guarda la puerta de
+            # evidencia), pero enseñarla engañaba: invitaba a leerla como "este
+            # paper responde mejor a la pregunta", cuando solo dice "este texto
+            # cae cerca de la pregunta en el espacio del embedding". Medido el
+            # 1-sep-2026 con "efficacy of dupilumab": los 5 papers iban de 70.16
+            # a 69.23 — un empate técnico presentado como podio 60% → 57%.
 
             # 'n_fragments' = cuántos chunks de ESTE artículo coincidieron y se
             # unieron bajo un solo [Doc N] (citas deduplicadas por PMID/NCT).
@@ -692,10 +716,8 @@ def _render_sources(sources):
                   <div class="src-head">
                     <span class="src-doc">Doc {f['n']}</span>
                     <span class="src-type">{src_lbl}</span>
-                    <span class="src-sim" style="color:{color}">● {pct}% match</span>
                   </div>
                   <div class="src-title">{title}</div>
-                  <div class="src-bar"><i style="width:{pct}%;background:{color}"></i></div>
                   {snippet_html}
                   {drugs_html}
                   <div class="src-meta">{id_lbl} · {frag_txt}</div>
@@ -716,22 +738,21 @@ def _render_other_sources(sources):
     """
     if not sources:
         return
-    st.caption("MIA retrieved these for their affinity with the question, but the "
-               "answer did not rely on them. They are listed with the reason, for "
-               "transparency (they do not count as cited sources).")
+    st.caption("MIA read these papers too — they came back for the same question — "
+               "but no sentence in the answer could be attributed to them with "
+               "confidence, so they are not cited. Listed with the reason, for "
+               "transparency.")
     for f in sources:
         title = html.escape(f.get("title") or "(untitled)")
         id_lbl = html.escape(_id_label(f.get("source"), f.get("doc_id")))
         src_lbl = html.escape(_source_type_label(f.get("source")))
         url = html.escape(f.get("url") or "#")
-        pct = _confidence_pct(float(f.get("similarity", 0) or 0))
         st.markdown(
             f"""
             <div class="src-card">
               <div class="src-head">
                 <span class="src-doc">Doc {f['n']}</span>
                 <span class="src-type">{src_lbl}</span>
-                <span class="src-sim" style="color:var(--mia-slate)">● {pct}% affinity</span>
               </div>
               <div class="src-title">{title}</div>
               <div class="src-reason">{_relevance_reason(f)}</div>
@@ -777,18 +798,23 @@ def _relevance_reason(f):
     if mets:
         partes.append("reports <b>" + html.escape(", ".join(mets[:3])) + "</b>")
     detalle = ("; ".join(partes) + ". " if partes else "")
-    return (f"{detalle}Retrieved for topical affinity with the question, but the "
-            "answer did not rely on it.")
+    return (f"{detalle}Retrieved for the same topic, but no sentence in the answer "
+            "could be traced to it with confidence.")
 
 
 def _render_data_cards(result, cited):
     """Fila de KPIs (Data Cards) con datos REALES de esta respuesta.
 
-    Regla de honestidad: solo métricas que MIA calcula de verdad. La confianza
-    es la SIMILITUD de recuperación (no "precisión" ni "veracidad": MIA no juzga
-    la verdad de la respuesta en vivo). Los KPIs hablan de las fuentes realmente
-    CITADAS (`cited`), no de todas las recuperadas. Si no hubo evidencia, no
-    mostramos nada: no hay KPIs que presumir.
+    Regla de honestidad: solo métricas que MIA calcula de verdad, y solo las que
+    el lector puede interpretar sin equivocarse. Los KPIs hablan de las fuentes
+    realmente CITADAS (`cited`), no de todas las recuperadas. Si no hubo
+    evidencia, no mostramos nada: no hay KPIs que presumir.
+
+    RETIRADO el 1-sep-2026: el KPI "Retrieval conf." (mejor similitud calibrada a
+    %). Aunque el tooltip avisaba de que no era una probabilidad de que la
+    respuesta fuese cierta, un número grande junto a "confianza" se lee como nota
+    de fiabilidad. Es el mismo motivo por el que desapareció el badge de las
+    tarjetas de fuente (ver _render_sources).
     """
     if not result.get("has_evidence") or not cited:
         return
@@ -797,23 +823,13 @@ def _render_data_cards(result, cited):
     # 1) Nº de fuentes citadas.
     n_fuentes = len(sources)
 
-    # 2) Confianza = mejor similitud calibrada a % (fuentes ya ordenadas por relevancia).
-    best_sim = float(sources[0].get("similarity", 0) or 0)
-    pct = _confidence_pct(best_sim)
-    dot = _conf_color(pct)
-
-    # 3) Desglose PubMed vs ClinicalTrials (agregado real por 'source').
+    # 2) Desglose PubMed vs ClinicalTrials (agregado real por 'source').
     n_pm = sum(1 for s in sources if "pubmed" in (s.get("source") or "").lower())
     n_ct = n_fuentes - n_pm
 
     cards = [
         f'<div class="mia-kpi"><div class="k-num">{n_fuentes}</div>'
         f'<div class="k-lbl">Cited sources</div></div>',
-        f'<div class="mia-kpi" title="Retrieval confidence, calibrated 0-100% from '
-        f'the MedCPT affinity (evidence threshold ~44%). It is not a probability '
-        f'that the answer is true."><div class="k-num">'
-        f'<span class="k-dot" style="background:{dot}"></span>{pct}%</div>'
-        f'<div class="k-lbl">Retrieval conf.</div></div>',
         f'<div class="mia-kpi"><div class="k-num">{n_pm} / {n_ct}</div>'
         f'<div class="k-lbl">PubMed / CT</div></div>',
     ]
@@ -914,30 +930,23 @@ if "messages" not in st.session_state:
 
 # Estado vacío: bienvenida + galería de ejemplos clicables, agrupados por INTENCIÓN
 # (eficacia / seguridad / comparativa) → el usuario ve de un vistazo qué sabe hacer.
+# Preguntas de ejemplo: vienen del PERFIL DE DOMINIO activo (domains/<slug>.json,
+# clave "example_questions"), así que cambian con la patología. Formato de cada
+# entrada: [título, icono, [preguntas…]].
 EJEMPLOS_POR_INTENCION = [
-    ("Efficacy", ":material/trending_up:", [
-        "Is lebrikizumab effective for atopic dermatitis?",
-        "What is the efficacy of dupilumab in atopic dermatitis?",
-    ]),
-    ("Safety", ":material/health_and_safety:", [
-        "What are the most common adverse events of upadacitinib?",
-        "Is baricitinib safe for long-term use in atopic dermatitis?",
-    ]),
-    ("Comparison", ":material/compare_arrows:", [
-        "How does dupilumab compare to tralokinumab in safety?",
-        "Dupilumab vs upadacitinib efficacy in atopic dermatitis?",
-    ]),
+    (str(t), str(i), [str(q) for q in qs])
+    for t, i, qs in (tuple(e) for e in config.EXAMPLE_QUESTIONS if len(e) == 3)
 ]
 
 if not st.session_state.messages:
     st.markdown(
-        """
+        f"""
         <div class="mia-welcome">
           <h3>Welcome</h3>
-          <p>Ask about the evidence on atopic dermatitis and its drugs. Everything
-             runs <b>locally</b>: every answer cites the exact sources backing it, and
-             when the evidence is not enough MIA says so instead of inventing. Try an
-             example:</p>
+          <p>Ask about the evidence on <b>{html.escape(config.DISEASE.lower())}</b> and
+             its drugs. Everything runs <b>locally</b>: every answer cites the exact
+             sources backing it, and when the evidence is not enough MIA says so
+             instead of inventing. Try an example:</p>
         </div>
         """,
         unsafe_allow_html=True,

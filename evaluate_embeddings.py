@@ -90,8 +90,8 @@ TIERS = [
 
 # Backends a comparar: (etiqueta, EMBEDDING_BACKEND, nombre de colección Chroma).
 BACKENDS = [
-    ("MedCPT (biomédico, MIA)", "medcpt", "mia_evidence_medcpt"),
-    ("OpenAI 3-small (Centivence)", "openai", "mia_evidence_openai"),
+    ("MedCPT (biomédico, MIA)", "medcpt", config.collection_name("medcpt")),
+    ("OpenAI 3-small (Centivence)", "openai", config.collection_name("openai")),
 ]
 
 TOP_K = config.TOP_K   # nº de documentos únicos que evaluamos por pregunta (5)

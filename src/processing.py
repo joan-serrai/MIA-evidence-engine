@@ -219,23 +219,19 @@ def _ct_adverse_events_text(ae_module):
 # `outcomes.py` busca la forma corta ("EASI 75"), que ahí NO aparece, así que sin
 # esto no se extraía ni una cifra de eficacia. Traducimos el título al nombre
 # canónico del endpoint y lo escribimos pegado al valor.
-_ENDPOINT_RULES = [
-    ("EASI 100", (r"\beasi\b", r"\b100\s*(?:percent|%)")),
-    ("EASI 90",  (r"\beasi\b", r"(?:>=?\s*)?\b90\s*(?:percent|%)")),
-    ("EASI 75",  (r"\beasi\b", r"(?:>=?\s*)?\b75\s*(?:percent|%)")),
-    ("EASI 50",  (r"\beasi\b", r"(?:>=?\s*)?\b50\s*(?:percent|%)")),
-    ("SCORAD 75", (r"\bscorad\b", r"\b75\b")),
-    ("SCORAD 50", (r"\bscorad\b", r"\b50\b")),
-    # IGA 0/1 se escribe de mil formas: "Clear (0) or Almost Clear (1)", "0 or 1",
-    # "0/1". Con que aparezca IGA y cualquiera de esas variantes, es el mismo endpoint.
-    ("IGA 0/1",  (r"\biga\b", r"(clear\s*\(0\)|almost\s*clear|\b0\s*(?:or|/)\s*1\b)")),
-]
+# GENERALIZACIÓN (3-sep-2026): las reglas ya no son una lista fija de EASI/IGA/
+# SCORAD. Salen del PERFIL DE DOMINIO activo (`config.EFFICACY_ENDPOINTS`, cada
+# uno con su `ct_title`: los patrones que deben aparecer TODOS en el título de la
+# medida). Ver `config.endpoint_spec` para cómo se derivan de una etiqueta.
+def _endpoint_rules():
+    """[(nombre_corto, [patrones…])] del dominio activo, en el orden del perfil."""
+    return [(e["label"], e["ct_title"]) for e in config.EFFICACY_ENDPOINTS]
 
 
 def _canonical_endpoint(titulo):
     """Nombre corto del endpoint ('EASI 75', 'IGA 0/1') o None si no se reconoce."""
     t = (titulo or "").lower()
-    for nombre, patrones in _ENDPOINT_RULES:
+    for nombre, patrones in _endpoint_rules():
         if all(re.search(p, t) for p in patrones):
             return nombre
     return None

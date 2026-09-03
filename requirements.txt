@@ -56,3 +56,8 @@ tqdm==4.70.0                  # barras de progreso al descargar/procesar
 # El producto MIA es 100% local y NO usa esto: sirve únicamente para generar los
 # embeddings de OpenAI con los que se compara MedCPT.
 openai==3.6.0                 # text-embedding-3-small
+
+# --- Solo DESARROLLO (pruebas automáticas; no lo necesita el producto) ---
+# `tests/test_pure.py` cubre las funciones puras (citas, cifras, guardianes,
+# perfiles de dominio) sin Ollama ni ChromaDB. Ejecutar: python -m pytest -q
+pytest==9.0.2

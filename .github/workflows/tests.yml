@@ -1,0 +1,26 @@
+# Integración continua mínima: en cada push/PR se ejecutan las pruebas PURAS
+# (tests/test_pure.py), que no necesitan Ollama, ni la base vectorial, ni los
+# modelos de embeddings. Por eso NO se instala torch/transformers (≈2 GB): solo
+# las dependencias que importan los módulos probados, a las mismas versiones
+# fijadas en requirements.txt.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install minimal dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "python-dotenv==1.2.3" "chromadb==1.5.9" "ollama==0.6.2" \
+                                "requests==2.34.2" pytest
+      - name: Run pure tests
+        run: python -m pytest -q

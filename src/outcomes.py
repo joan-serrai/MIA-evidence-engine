@@ -16,27 +16,29 @@ en varias semanas produce varios puntos (uno por semana), no un promedio inventa
 """
 
 import re
+import sys
 
-# Métricas de eficacia reconocidas en la literatura de dermatitis atópica.
-# ORDEN IMPORTANTE: las variantes más específicas primero (EASI 100 antes que
-# EASI 10/EASI 1...) para que el patrón general no se las coma.
-#
+try:
+    from .. import config
+except (ImportError, ValueError):
+    sys.path.append(str(__import__("pathlib").Path(__file__).resolve().parent.parent))
+    import config
+
 # Cada entrada es (patrón, etiqueta, TIPO). El TIPO ("efficacy" | "safety") NO es
 # decorativo: una tasa de respuesta EASI-75 (cuanto más alta, mejor) y una tasa de
 # nasofaringitis (cuanto más alta, peor) NO pueden ir en la misma barra de un
 # gráfico sin falsear la lectura. El gráfico de la UI muestra solo 'efficacy'; la
 # tabla del informe las agrupa por separado.
-_METRIC_PATTERNS = [
-    # --- Eficacia: endpoints de respuesta de dermatitis atópica ---
-    (re.compile(r"\bEASI[-\s]?100\b", re.I), "EASI 100", "efficacy"),
-    (re.compile(r"\bEASI[-\s]?90\b", re.I), "EASI 90", "efficacy"),
-    (re.compile(r"\bEASI[-\s]?75\b", re.I), "EASI 75", "efficacy"),
-    (re.compile(r"\bEASI[-\s]?50\b", re.I), "EASI 50", "efficacy"),
-    (re.compile(r"\bvIGA[-\s]?AD\s*0\s*/\s*1\b", re.I), "vIGA-AD 0/1", "efficacy"),
-    (re.compile(r"\bIGA\s*0\s*/\s*1\b", re.I), "IGA 0/1", "efficacy"),
-    (re.compile(r"\bSCORAD[-\s]?75\b", re.I), "SCORAD 75", "efficacy"),
-    (re.compile(r"\bSCORAD[-\s]?50\b", re.I), "SCORAD 50", "efficacy"),
-
+#
+# GENERALIZACIÓN (3-sep-2026): los endpoints de EFICACIA ya no están escritos aquí
+# (eran los de dermatitis atópica: EASI, IGA, SCORAD). Vienen del PERFIL DE DOMINIO
+# activo (`config.EFFICACY_ENDPOINTS`, derivados de domains/<slug>.json), así que
+# para psoriasis serán PASI 75/90, para artritis ACR20/50, etc. El ORDEN del perfil
+# importa: las variantes más específicas primero (EASI 100 antes que EASI 10) para
+# que el patrón general no se las coma. Los términos de SEGURIDAD genéricos (eventos
+# adversos, discontinuación, infecciones frecuentes) sí siguen aquí porque valen
+# para cualquier fármaco; el perfil puede AÑADIR los suyos (`safety_terms`).
+_GENERIC_SAFETY_PATTERNS = [
     # --- Seguridad: eventos adversos ---
     # Antes no había NINGUNO, así que cualquier pregunta de seguridad daba la
     # tabla "Key figures" vacía aunque el abstract trajera las cifras.
@@ -72,6 +74,23 @@ _METRIC_PATTERNS = [
     (re.compile(r"\binjection[-\s]site\s+reactions?\b", re.I),
      "Injection-site reaction", "safety"),
 ]
+
+# Patrones del dominio ACTIVO, cacheados por slug: si la interfaz cambia de
+# patología en caliente, se reconstruyen solos en la siguiente llamada.
+_PATTERN_CACHE = {"slug": None, "patterns": None}
+
+
+def _metric_patterns():
+    """Lista (patrón, etiqueta, tipo): eficacia del perfil + seguridad genérica +
+    seguridad extra del perfil. Se recompila si cambia el dominio activo."""
+    if _PATTERN_CACHE["slug"] != config.DOMAIN_SLUG:
+        eficacia = [(re.compile(e["regex"], re.I), e["label"], "efficacy")
+                    for e in config.EFFICACY_ENDPOINTS]
+        extra = [(re.compile(s["regex"], re.I), s["label"], "safety")
+                 for s in config.SAFETY_TERMS]
+        _PATTERN_CACHE["slug"] = config.DOMAIN_SLUG
+        _PATTERN_CACHE["patterns"] = eficacia + _GENERIC_SAFETY_PATTERNS + extra
+    return _PATTERN_CACHE["patterns"]
 
 # Un porcentaje: "82.6%", "65 %", "43.9%". Capturamos solo el número.
 _PCT_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)\s?%")
@@ -110,7 +129,8 @@ def extract_outcomes(text, doc_n, max_points=8):
 
     puntos = []
     vistos = set()
-    for pat, label, kind in _METRIC_PATTERNS:
+    patrones = _metric_patterns()
+    for pat, label, kind in patrones:
         for m in pat.finditer(text):
             ventana = text[m.end(): m.end() + 110]
 
@@ -118,7 +138,7 @@ def extract_outcomes(text, doc_n, max_points=8):
             # o (b) el fin de la frase. Así un % de la frase siguiente (p. ej. la
             # tasa de efectos adversos) no se atribuye por error a esta métrica.
             corte = len(ventana)
-            for pat2, _, _k in _METRIC_PATTERNS:
+            for pat2, _, _k in patrones:
                 mm = pat2.search(ventana)
                 if mm and 0 < mm.start() < corte:
                     corte = mm.start()

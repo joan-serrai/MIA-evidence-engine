@@ -20,3 +20,10 @@ font = "sans serif"
 [client]
 # Ocultamos la barra de herramientas de desarrollador para un look de producto.
 toolbarMode = "minimal"
+
+[server]
+# SEGURIDAD (3-sep-2026): por defecto Streamlit escucha en TODAS las interfaces
+# (0.0.0.0) y anuncia una "External URL" pública. MIA es una herramienta LOCAL
+# sin autenticación: la atamos a localhost para que solo se pueda abrir desde
+# este equipo. Para compartirla en una red de confianza, cambiar aquí a propósito.
+address = "localhost"

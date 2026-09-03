@@ -25,6 +25,208 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-03 · Auditoría externa: la demo fallaba, XSS, y MIA para cualquier enfermedad
+
+Bloque nacido de una **auditoría completa** (seguridad, calidad de software, pruebas
+reales de cada fase y visión de producto). Se pidió probar cada cosa tres veces antes
+de darla por buena. Lo que salió, en orden de gravedad.
+
+### Corregido — la pregunta de demo fallaba 4 de 6 veces (regresión del 2-sep)
+El guardián de "modo examen" ampliado el 2-sep-2026 (`_EXAM_RE`) **descartaba** toda
+respuesta que abriera con *"The Answer is:"*. Medido con instrumentación de cada intento
+(`ollama.chat` espiado) sobre `"What is the efficacy of dupilumab in atopic dermatitis?"`:
+
+```
+temp 0.0 → "The Answer is: Dupilumab is effective in treating AD, improving signs…"  ← RECHAZADA
+temp 0.2 → "The provided CONTEXT does not contain a specific question or task."     ← aceptada
+temp 0.35→ "The Answer is a meta-analysis of adults."                                 ← RECHAZADA
+temp 0.5 → "The provided CONTEXT is insufficient for answering the QUESTION…"        ← aceptada
+```
+
+Es decir: la **única salida buena** (temperatura 0) se tiraba por su primera palabra, y
+los reintentos a más temperatura hacían que el modelo **se rindiera** — y esa rendición
+no la cazaba ningún filtro, así que se devolvía al usuario como respuesta (o, si todo
+degeneraba, el mensaje de "no pude producir una respuesta fiable"). A/B contra el prompt
+committeado (HEAD): HEAD 3/3 respuestas reales (con el prefijo feo visible); working
+tree 2/6. **Arreglo:** el prefijo de examen se **recorta** (`_strip_exam_prefix`) en vez
+de rechazarse; solo sigue siendo degenerado el examen "puro" (`_EXAM_BARE_RE`: tras el
+prefijo solo hay yes/no/una letra). Y la rendición total se detecta (`_GIVEUP_RE`, solo
+si es TODA la respuesta, ≤ 2 frases — una abstención parcial legítima sigue pasando).
+**Verificado 3/3** después del cambio; 12 casos positivos y negativos en `tests/test_pure.py`.
+Lección para el CLAUDE.md: un guardián nuevo se prueba con casos que NO debe marcar.
+
+### Corregido — XSS en la interfaz
+`_highlight_citations` en `app/streamlit_app.py` insertaba la respuesta del LLM en HTML
+con `unsafe_allow_html=True` **sin escaparla**. La respuesta se redacta a partir de
+abstracts descargados de internet: un `<script>` colado en uno (o inventado por el modelo)
+se habría ejecutado en el navegador. `src/report.py` ya escapaba; la app no. Ahora
+`html.escape` antes de pintar las insignias. Riesgo real bajo (app local, un usuario),
+pero es exactamente el tipo de fallo que un revisor de seguridad señala primero.
+
+### Corregido — la app escuchaba en todas las interfaces de red
+Streamlit arranca en `0.0.0.0` y anuncia una "External URL" con la IP pública. MIA no
+tiene autenticación. `.streamlit/config.toml` fija ahora `server.address = "localhost"`.
+
+### Añadido — perfiles de dominio: MIA para cualquier enfermedad
+Hasta hoy la dermatitis atópica estaba escrita en `config.py` **y** repartida por el
+código: endpoints EASI/IGA en `outcomes.py` y `processing.py`, mecanismos IL-4/IL-13/JAK
+y clases biológico↔JAK en `triplet_agent.py`, nombres de colección en siete archivos,
+ejemplos y bienvenida de la app, "EASI-75, IGA 0/1" en los prompts. Ahora:
+
+- `domains/<slug>.json` describe una patología (enfermedad, sinónimos, fármacos por
+  clase, mecanismos, endpoints, términos de seguridad, búsquedas extra, ejemplos).
+  `config.py` carga el perfil activo (`MIA_DOMAIN` > `domains/active.txt` > default) y
+  expone los nombres de siempre; `config.activate_domain()` cambia en caliente.
+- `config.endpoint_spec("PASI 75")` deriva solo el regex del abstract y los patrones del
+  título de CT.gov, así que un dominio nuevo no toca código. Verificado que para el
+  perfil original produce **exactamente** las mismas cifras que la lista fija anterior.
+- Cada perfil tiene su colección (`mia_<slug>_<backend>`), su `data/bronze/<slug>/`,
+  su silver y su censo. El perfil original conserva `mia_evidence_*` y `data/bronze`:
+  el índice de 9.734 chunks y las evaluaciones del TFM siguen valiendo tal cual.
+- `build_corpus.py`: un comando crea el perfil, descarga (fármaco+enfermedad y búsquedas
+  libres por mecanismo), indexa con MedCPT, exporta el censo y, con `--openai`, la
+  colección gemela. Selector de perfil en la barra lateral de la app.
+
+**Medido** con un dominio real, psoriasis en placas (secukinumab, ixekizumab,
+apremilast; `--max 15`; una búsqueda extra "IL-17 inhibitor"): **3 min 19 s** de punta
+a punta → 100 documentos (47 PubMed + 53 CT.gov), **584 chunks**. RAG sobre ese corpus,
+3 preguntas distintas: **3/3 respuestas válidas** con citas, y `outcomes` extrajo cifras
+**PASI 75 / PASI 100** sin haber escrito ni una línea nueva de regex. Control cruzado: la
+pregunta de dupilumab en el corpus de psoriasis puntúa 60,85 → **bloqueada** por el umbral
+y dispara el Scout, como debe.
+
+### Añadido — pruebas automáticas y preparación para GitHub
+- `tests/test_pure.py`: **26 pruebas** en ~1 s sin Ollama ni Chroma (guardianes, citas,
+  cifras, endpoints de CT.gov, perfiles de dominio con cambio en caliente).
+- `.github/workflows/tests.yml`: las ejecuta en cada push (instala solo lo mínimo, no torch).
+- `.gitattributes` (LF en el repo; fin de los avisos CRLF), `.gitignore` ampliado
+  (`domains/active.txt`, `data/_report_demo.html`), `MIA_DOMAIN` en `.env.example`,
+  `pytest` como dependencia de desarrollo.
+
+### Medido — lo que la auditoría encontró y NO se ha cambiado (queda en TASKS.md)
+- **Puerta de evidencia**: preguntas ajenas quedan fuera (Francia 63,1; hipertensión 59,1;
+  psoriasis 62,8; artritis 61,4 — todas < 66) pero el margen con otras patologías es de
+  ~3 puntos. "rocatinlimab" (fármaco ausente) **pasa** con 69,8 porque una revisión lo
+  menciona: la señal B del Scout (nombre en lo recuperado) se satisface con una mención.
+- **Pregunta en español**: MedCPT la recupera (70,6, top-1 un consenso mexicano) y el LLM
+  responde bien… **en inglés**. La limitación es de redacción, no de recuperación.
+- **Citas**: en respuestas genéricas ("improves signs and symptoms") el reparto conservador
+  deja 0-1 citas por respuesta (3 ejecuciones). Correcto por diseño, pobre para la demo.
+- **Paridad MedCPT/OpenAI**: el Scout solo indexa en la colección MedCPT → cada uso rompe
+  el experimento controlado de la comparativa.
+- **`access`**: 8.617 chunks de PubMed tienen `access = None`; el aviso de paper de pago
+  no salta nunca hasta reprocesar.
+- **Dependencias** (`pip-audit` sobre el lock): 4 CVE en chromadb 1.5.9
+  (CVE-2026-45830/-45831/-45833, PYSEC-2026-311), todas del **modo servidor** (RBAC,
+  multi-tenant, inyección vía función de embedding). MIA usa `PersistentClient` embebido
+  sin servidor HTTP → no expuesto. Sin versión corregida publicada; vigilar.
+- **Secretos**: `.env` con la clave real de OpenAI está ignorado y **no aparece en ningún
+  commit** (comprobado con `git log -p -S`). `.env.example` correcto.
+- **Documentación desfasada**: README/CLAUDE.md decían 8.920 chunks; el índice tiene 9.734
+  en MedCPT y OpenAI (misma cifra: la paridad está bien ahora). Corregido en CLAUDE.md.
+
+---
+
+## 2026-09-02 · Fuera el "% de afinidad", y el modo examen ya no se cuela
+
+Todo esto sale de **un solo test manual** con la pregunta
+`"What is the efficacy of dupilumab in atopic dermatitis?"`. La respuesta citaba
+Doc 3, 4 y 5, y el panel de "Retrieval details" listaba Doc 1 y Doc 2 con un
+porcentaje de afinidad MAYOR. La pregunta legítima del usuario fue: *si esos dos
+son los que mejor casan, ¿por qué no los cita?* Investigarlo destapó tres cosas.
+
+### Corregido — el guardián de "modo examen" tenía un agujero
+`_looks_degenerate` existe para descartar la degeneración tipo test de OpenBioLLM
+(está afinado con preguntas estilo USMLE). Pero `_EXAM_RE` exigía que tras
+*"the answer is"* viniera `yes|no|true|false|[a-e]`, así que **dejaba pasar el caso
+real medido**: `"The Answer is: Dupilumab is effective in treating atopic
+dermatitis…"` — el mismo tic de examen, seguido de prosa normal. Ahora basta con
+que la respuesta ABRA así (es una apertura de examen se complete como se complete),
+y se toleran el adorno markdown `**The answer is:**` y el rodeo *"the answer to
+this question is"*. Detectarlo no descarta la respuesta: dispara un reintento con
+la temperatura al alza. Probado con 8 casos, 5 positivos y 3 negativos que NO debe
+marcar (entre ellos uno que empieza por *"Answering this question requires…"*).
+
+### Cambiado — se retira el "% de afinidad" de la página de respuesta
+Desaparecen el badge `● N% match` y la barra de las tarjetas de fuente citada, el
+`● N% affinity` de las no citadas, el KPI *"Retrieval conf."* y la tabla
+*"Retrieval confidence"* del informe exportable (`src/report.py`). Con ellos se van
+`_confidence_pct` y `_conf_color` de la app y del informe.
+
+**Motivo.** El número invitaba a leerse como *"este paper responde mejor a la
+pregunta"*, y no es eso: solo mide **proximidad entre la pregunta y el texto en el
+espacio del embedding**, calculada ANTES de que exista ninguna respuesta. En el
+test quedó claro que además sugiere un podio inexistente: los 5 papers puntuaron
+**70,16 · 69,56 · 69,54 · 69,37 · 69,23** — un empate técnico que la calibración
+estiraba a un engañoso 60% → 57%. El tooltip ya avisaba de que no era una
+probabilidad de veracidad, pero un número grande junto a la palabra "confianza" se
+lee como nota de fiabilidad por mucho que la letra pequeña lo niegue.
+
+La calibración **no se pierde**: sigue viva en `src/compare.py`, que alimenta la
+página MedCPT vs OpenAI. Ahí el número es el objeto de estudio (la tesis va
+justamente de calidad de recuperación), no un adorno junto a una respuesta.
+
+### Corregido — la UI afirmaba más de lo que puede demostrar
+Decía de las fuentes no citadas: *"the answer did not rely on them"*. **Eso no está
+probado.** Doc 1 y Doc 2 SÍ entraron en el contexto que leyó el LLM — de hecho
+entraron primero, y el presupuesto de caracteres se gasta en orden, así que fueron
+los que menos riesgo tuvieron de truncarse. Lo único cierto es que **ninguna frase
+pudo atribuírseles con confianza**, que es lo que dice ahora. Mismo arreglo en la
+app y en el informe.
+
+### Medido — por qué Doc 1 y Doc 2 se quedaron sin cita
+No fue el ranking: fue el reparto determinista de `citations.py`. Reproducido el
+scoring frase a frase:
+
+```
+F1: "Dupilumab is effective…"   D3=2.86 | D5=2.86 | D1=0.09 | D2=0.09 | D4=0.09
+    -> SIN CITA (empate PERFECTO entre Doc 3 y Doc 5, margen 1.00x < 1.20)
+```
+
+Doc 1 y Doc 2 sacaron **0,09**: sus términos distintivos son `monoclonal, antibody,
+human, blocking` — vocabulario de farmacología general que la respuesta no llegó a
+usar. Doc 5 aportaba `dose regimens, signs, symptoms` y sí casó. O sea: recuperación
+correcta **y** reparto de citas correcto; lo que fallaba era el letrero.
+
+### Cambiado — el prompt pide ahora atribución por estudio, no "multiple studies"
+Se añade a `_TASK_DIRECTIVE` y a `_ANSWER_SYSTEM` que cada frase abra con el
+**diseño y la población** del estudio ("a meta-analysis of adults", "a pediatric
+trial") y que, cuando dos documentos toquen el mismo endpoint, se diga si
+**coinciden o discrepan**. Objetivo: que la respuesta se lea como *"este paper dice
+A, mientras que aquel dice B"* en vez de un puré de "los estudios demuestran".
+
+**Funciona a medias, y conviene decirlo.** La atribución sí entró (ahora escribe *"A
+systematic review and network meta-analysis of RCTs involving 3.679 patients…"*),
+pero en 3 de 3 ejecuciones el modelo **se ancla a UN solo documento**. Y hubo que
+retroceder: una primera versión añadía la regla *"usa al menos TRES documentos y
+nunca más de dos frases seguidas del mismo"* y **2 de 3 ejecuciones se rindieron**
+("The provided CONTEXT is insufficient…"). Lección: un 8B tiene un presupuesto de
+instrucciones limitado, y una regla de RECUENTO se lo come entero. Se revirtió.
+
+### Medido — el anclaje a un documento NO es sesgo de posición
+Hipótesis razonable: el modelo se pega al `[Doc 5]` porque es el último bloque del
+contexto, pegadito a la pregunta (sesgo de recencia). **Refutada.** Se invirtió el
+orden de los bloques dejando cada etiqueta con su paper (Doc 5 primero, Doc 1
+último) y el modelo **siguió anclándose al Doc 5** en las dos ejecuciones. Es el
+CONTENIDO: el Doc 5 es un meta-análisis en red con 3.679 pacientes y todas las
+pautas de dosis — el documento con más "forma de respuesta" de los cinco.
+Consecuencia práctica: **reordenar el contexto no arregla nada**, y la vía barata
+queda descartada. Anotado en `TASKS.md` con las alternativas que quedan.
+
+Y un apunte que explica bastante: de los 5 papers recuperados, 4 son revisiones o
+meta-análisis que dicen casi lo mismo. **Sin diversidad en la recuperación no puede
+haber contraste en la redacción**, por bueno que sea el redactor. Puede que el
+arreglo de verdad esté en recuperar 5 papers DISTINTOS (tipo MMR), no en pedirle
+al LLM que contraste cinco versiones del mismo documento.
+
+### Medido — la respuesta NO es determinista pese a `temperature: 0.0`
+Dos ejecuciones seguidas de la misma pregunta dieron respuestas distintas, y una de
+ellas arrancó en modo examen. Ollama no garantiza determinismo. **Importante para la
+memoria del TFM:** no se puede afirmar que el sistema sea reproducible frase a frase;
+lo reproducible es la RECUPERACIÓN (misma pregunta → mismos 5 papers, mismos scores).
+
+---
+
 ## 2026-09-01 · Instrumento de evaluación por fuente (y dos hallazgos incómodos)
 
 ### Corregido — las dos colecciones habían divergido

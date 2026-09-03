@@ -129,8 +129,8 @@ CONTROL_OFFTOPIC = [
 SOURCES = [("PubMed", "pubmed"), ("ClinicalTrials", "clinicaltrials")]
 
 BACKENDS = [
-    ("MedCPT (biomédico, MIA)", "medcpt", "mia_evidence_medcpt"),
-    ("OpenAI 3-small (Centivence)", "openai", "mia_evidence_openai"),
+    ("MedCPT (biomédico, MIA)", "medcpt", config.collection_name("medcpt")),
+    ("OpenAI 3-small (Centivence)", "openai", config.collection_name("openai")),
 ]
 
 TOP_K = config.TOP_K

@@ -31,14 +31,17 @@ st.set_page_config(
     layout="wide",
 )
 
-# Backends a enfrentar: (etiqueta, backend, colección, sublínea).
-IZQ = ("MIA", "medcpt", "mia_evidence_medcpt", "MedCPT · biomedical · 100% local")
-DER = ("Centivence", "openai", "mia_evidence_openai",
+# Backends a enfrentar: (etiqueta, backend, colección, sublínea). Las colecciones
+# salen de config (dependen del PERFIL DE DOMINIO activo, ver config.collection_name).
+IZQ = ("MIA", "medcpt", config.collection_name("medcpt"), "MedCPT · biomedical · 100% local")
+DER = ("Centivence", "openai", config.collection_name("openai"),
        "text-embedding-3-small · generalist · OpenAI API")
 
 # Preguntas de ejemplo DIFÍCILES (por mecanismo/sinónimo, sin nombrar el fármaco):
 # es donde un embedding biomédico debería destacar. 'drugs' = objetivo correcto.
-EJEMPLOS = [
+# Vienen del perfil (`mechanism_questions`); si el perfil no trae, se usan las del
+# caso original de dermatitis atópica.
+_EJEMPLOS_AD = [
     {"q": "Antibody targeting the IL-4 receptor alpha for atopic eczema",
      "drugs": ["dupilumab"]},
     {"q": "Therapy targeting IL-31 signaling to relieve itch in atopic eczema",
@@ -48,6 +51,8 @@ EJEMPLOS = [
     {"q": "JAK1-selective inhibitors for severe atopic eczema",
      "drugs": ["upadacitinib", "abrocitinib"]},
 ]
+EJEMPLOS = [{"q": e["q"], "drugs": list(e.get("drugs") or [])}
+            for e in config.MECHANISM_QUESTIONS] or _EJEMPLOS_AD
 
 
 # ==========================================================================

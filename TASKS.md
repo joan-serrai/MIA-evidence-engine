@@ -5,8 +5,8 @@ futuras. Se va actualizando a medida que surgen cosas.
 
 Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a valorar
 
-> **Última revisión: 31-ago-2026.** Puesta al día tras el cambio de ordenador
-> (el proyecto se movió de OneDrive a `C:\dev\MIA` y se reconstruyó el entorno).
+> **Última revisión: 3-sep-2026.** Tras la auditoría externa (seguridad, calidad,
+> pruebas) y la generalización a cualquier patología (perfiles de dominio).
 
 ---
 
@@ -22,6 +22,32 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **Que la respuesta CONTRASTE papers, no que resuma uno.** Objetivo: leer *"un
+  ensayo pediátrico reporta A, mientras que un meta-análisis en adultos encuentra
+  B; ambos coinciden en C"*. El prompt ya pide atribución por diseño y población
+  (2-sep-2026) y eso SÍ entró, pero el modelo **se ancla a un solo documento** en
+  3 de 3 pruebas. Vía de prompt agotada: subir la presión con una regla de
+  recuento hizo que 2 de 3 ejecuciones se rindieran. ~~Sesgo de posición~~
+  **descartado** el 2-sep-2026: invirtiendo el orden del contexto (Doc 5 primero)
+  el modelo se sigue anclando al Doc 5 → es el CONTENIDO, no la posición.
+  Candidatos que quedan, por orden de coste:
+  1. **Redacción por tramos**: una llamada por documento y una de síntesis, en
+     vez de pedirle todo de una. Más lento, pero un 8B sigue mejor una
+     instrucción simple repetida que una compleja única.
+  2. **Diversificar la recuperación** (tipo MMR): hoy los 5 papers recuperados son
+     casi el mismo paper cinco veces — 4 de 5 son revisiones/meta-análisis con el
+     mismo mensaje. Sin diversidad en la entrada no puede haber contraste en la
+     salida, por bueno que sea el redactor.
+  3. **Modelo más grande** para la redacción, manteniendo MedCPT en recuperación.
+- **Permitir una frase de convergencia con DOS citas.** Hoy `citations.py` asigna
+  como mucho un `[Doc N]` por frase, así que *"estos dos artículos demuestran X"*
+  no es representable: habría que decidir si una frase puede llevar dos citas sin
+  volver al amontonamiento que ese módulo existe para evitar.
+- **Reponer algo en el hueco del "% de afinidad" (opcional).** Se retiró el
+  2-sep-2026 por engañoso. La tarjeta de fuente quedó sin nada a la derecha. Si
+  se quiere llenar, que sea con un dato que el lector pueda usar sin
+  malinterpretarlo: tipo de estudio, tamaño muestral o población — nunca un
+  número de "confianza".
 - **Decidir el umbral por fuente (opción A).** Ya está el instrumento
   (`evaluate_sources.py`) y la medición hecha. Resultado: CT.gov separa mejor
   (+3,00 de hueco) que PubMed (+1,79), así que un umbral propio ~62-63 para
@@ -52,11 +78,33 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
   biomédico en la Fase 4. Es defendible —por eso las citas las coloca
   `src/citations.py` de forma determinista, no el LLM— pero hay que decirlo
   explícitamente en la memoria antes de que lo pregunten en la defensa.
-- **Sin tests ni lint.** La "prueba" de cada módulo es su bloque
-  `if __name__ == "__main__"`. Con tres módulos nuevos, es el punto más frágil
-  del proyecto. Mínimo viable: un `pytest` que importe cada módulo y ejecute
-  las funciones puras (`auc_from_flags`, `_pick_negative`, `citations`,
-  `outcomes`) sin tocar Ollama ni Chroma.
+- **Subir el repositorio a GitHub.** No hay remoto. Pasos: crear el repo vacío en
+  github.com (sin README), `git remote add origin …`, `git push -u origin master`.
+  Antes: commitear el bloque del 3-sep-2026 y elegir licencia (recomendada MIT).
+  El workflow de Actions (`.github/workflows/tests.yml`) arrancará solo.
+- **Reprocesar el corpus para rellenar `access`.** 8.617 chunks de PubMed tienen
+  `access = None` → el aviso de "paper de pago" nunca salta (ver abajo). Tras
+  reprocesar, volver a ejecutar `index_openai.py` para mantener la paridad.
+- **El Scout rompe la paridad MedCPT/OpenAI.** Cuando importa evidencia nueva solo
+  la indexa en la colección de producto (MedCPT). La colección OpenAI se queda
+  atrás y la comparativa deja de ser un experimento controlado. Opciones: que el
+  Scout embeba también con OpenAI si hay clave (coste ínfimo), o que la página de
+  comparación avise cuando los recuentos difieren.
+- **Cobertura de citas baja en respuestas genéricas.** Medido 3-sep-2026 con la
+  pregunta de demo: 0-1 citas por respuesta en 3 ejecuciones (la respuesta es
+  correcta pero genérica — "improves signs and symptoms" — y el reparto por
+  solapamiento, conservador a propósito, no encuentra términos distintivos). Una
+  respuesta sin citas muestra el aviso ámbar en la app. Vías: pedir cifras
+  concretas con más fuerza (ya se hace), o relajar `_MIN_SCORE` solo cuando la
+  frase menciona el fármaco y hay una única fuente candidata.
+- **El LLM no detecta "please provide the question" como fallo**… ya sí (3-sep-2026,
+  `_GIVEUP_RE`), pero el patrón es una lista de frases: conviene medir con más
+  preguntas qué otras formas de rendición existen.
+- **Calibrar el umbral por dominio.** Los perfiles nuevos heredan el 66.0 de
+  dermatitis atópica. `evaluate_sources.py` debería aceptar `--domain` y un
+  golden set mínimo por perfil (p. ej. generado de `example_questions`).
+- **Lint.** Sigue sin haber. `ruff` con la config por defecto sería suficiente y
+  cabe en el mismo workflow de Actions.
 
 ## 💡 Ideas a valorar
 
@@ -100,6 +148,16 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 - `src/report.py` — informe de evidencia HTML autónomo y exportable.
 - `src/status.py` — panel de estado (Ollama, modelos, corpus) y avisos accionables.
 - `run.ps1` / `run.bat` — lanzador de un clic.
+
+### Auditoría y generalización (3-sep-2026)
+- **Regresión del guardián de examen** corregida (`_strip_exam_prefix` + `_GIVEUP_RE`):
+  la pregunta de demo pasó de fallar 4/6 a 3/3 correctas.
+- **XSS** en la app: la respuesta del LLM se escapa antes de pintarla como HTML.
+- **Perfiles de dominio** (`domains/*.json`, `build_corpus.py`, selector en la app):
+  MIA sirve para cualquier patología; el perfil original conserva sus colecciones.
+- **pytest** (`tests/test_pure.py`, 26 pruebas) + **GitHub Actions** + `.gitattributes`.
+- Auditoría de dependencias (`pip-audit`): 4 CVE en chromadb 1.5.9, todas del modo
+  servidor/RBAC; MIA usa `PersistentClient` embebido → no expuesto. Sin fix publicado.
 
 ### Mantenimiento
 - Script `ver_db.py` para inspeccionar ChromaDB (censo, ejemplos, búsqueda real).

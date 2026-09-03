@@ -208,8 +208,8 @@ if __name__ == "__main__":
     q = " ".join(sys.argv[1:]) or "antibody targeting the IL-4 receptor alpha for atopic eczema"
     print(f"Pregunta: {q}\n")
     for etiqueta, backend, coleccion in [
-        ("MedCPT (MIA)", "medcpt", "mia_evidence_medcpt"),
-        ("OpenAI (Centivence)", "openai", "mia_evidence_openai"),
+        ("MedCPT (MIA)", "medcpt", config.collection_name("medcpt")),
+        ("OpenAI (Centivence)", "openai", config.collection_name("openai")),
     ]:
         r = retrieve_ranked(q, backend, coleccion, target_drugs=["dupilumab"])
         print(f"--- {etiqueta} · hit@1={r['hit1']} · on-target={r['n_on_target']}/{r['total']}")

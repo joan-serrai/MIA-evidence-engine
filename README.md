@@ -202,6 +202,59 @@ la app en el navegador.
 
 ---
 
+## 🧬 Usar MIA con OTRA enfermedad (perfiles de dominio)
+
+MIA se construyó y validó sobre la dermatitis atópica, pero **no está atada a ella**.
+Desde el 3-sep-2026 cada patología es un **perfil de dominio** en `domains/<slug>.json`
+(enfermedad, sinónimos, fármacos por clase, mecanismos, endpoints de eficacia, preguntas
+de ejemplo) con **su propio corpus** (colección de ChromaDB) y sus propias descargas
+(`data/bronze/<slug>/`). Varias patologías conviven en la misma instalación y se cambia
+de una a otra **desde la barra lateral de la app**, sin reiniciar.
+
+Para crear un perfil nuevo y descargar/indexar su evidencia con un solo comando:
+
+```powershell
+.\.venv\Scripts\python.exe build_corpus.py `
+    --disease "Plaque psoriasis" --synonym psoriasis `
+    --class "il17_biologics=secukinumab,ixekizumab,bimekizumab" `
+    --class "il23_biologics=risankizumab,guselkumab" `
+    --class "oral=apremilast,deucravacitinib" `
+    --mechanism "il-17=secukinumab,ixekizumab,bimekizumab" `
+    --mechanism "il-23=risankizumab,guselkumab" `
+    --endpoint "PASI 100" --endpoint "PASI 90" --endpoint "PASI 75" --endpoint "sPGA 0/1" `
+    --query "IL-17 inhibitor" --max 50 --activate
+```
+
+Qué hace, en orden: escribe `domains/plaque_psoriasis.json` → descarga de PubMed y
+ClinicalTrials.gov por cada (enfermedad + fármaco) y por cada `--query` libre → limpia,
+trocea e indexa con MedCPT en `mia_plaque_psoriasis_medcpt` → exporta el censo
+`data/corpus_manifest_plaque_psoriasis.csv`. Con `--openai` construye además la colección
+gemela de OpenAI para la página de comparación. `--profile-only` solo escribe el perfil.
+
+Notas honestas:
+- El **umbral de evidencia** (66.0) se calibró con el corpus de dermatitis atópica. Es
+  sobre todo una propiedad de MedCPT, así que suele valer, pero **compruébalo** en el
+  dominio nuevo con `evaluate_sources.py` antes de fiarte de la puerta anti-alucinación.
+- Los **golden sets** de las evaluaciones (`evaluate_embeddings*.py`, `src/evaluation.py`)
+  son de dermatitis atópica: miden la tesis del TFM, no el dominio nuevo.
+- Los endpoints de eficacia se declaran con su etiqueta (`--endpoint "PASI 75"`); MIA
+  deriva sola cómo buscarlos en abstracts y en los títulos de ClinicalTrials.gov. Los
+  términos de seguridad genéricos (eventos adversos, discontinuación, infecciones) valen
+  para cualquier fármaco; añade los propios del dominio con `--safety-term`.
+- El agente Scout sigue funcionando en cualquier dominio: busca `<fármaco> AND <enfermedad
+  OR sinónimos>` en las fuentes oficiales e indexa lo nuevo en la colección del perfil.
+
+## 🧪 Pruebas
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+`tests/test_pure.py` cubre las funciones puras (guardianes de la generación, reparto y
+validación de citas, extracción de cifras, endpoints de ClinicalTrials.gov, perfiles de
+dominio) sin necesitar Ollama ni la base vectorial. El mismo comando corre en GitHub
+Actions (`.github/workflows/tests.yml`) en cada push.
+
 ## 🗺️ Estado y hoja de ruta
 
 - ✅ **Fase 1 — Datos**: `ingestion.py` + `processing.py` (8.920 chunks indexados).

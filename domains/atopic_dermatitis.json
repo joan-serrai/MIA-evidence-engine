@@ -1,0 +1,99 @@
+{
+  "slug": "atopic_dermatitis",
+  "disease": "Atopic dermatitis",
+  "synonyms": [],
+  "description": "Perfil original del capstone: dermatitis atópica y sus fármacos competidores (biológicos anti-IL e inhibidores JAK orales). Sin sinónimos de búsqueda a propósito: el corpus del TFM se descargó con el término exacto 'Atopic dermatitis'.",
+  "drug_classes": {
+    "biologics": [
+      "dupilumab",
+      "tralokinumab",
+      "lebrikizumab",
+      "nemolizumab"
+    ],
+    "jak_inhibitors": [
+      "upadacitinib",
+      "baricitinib",
+      "abrocitinib"
+    ]
+  },
+  "class_labels": {
+    "biologics": "anti-interleukin antibodies",
+    "jak_inhibitors": "JAK inhibitors"
+  },
+  "extra_drugs": [
+    "ruxolitinib",
+    "crisaborole",
+    "delgocitinib"
+  ],
+  "mechanisms": {
+    "il-31": [
+      "nemolizumab"
+    ],
+    "il31": [
+      "nemolizumab"
+    ],
+    "il-13": [
+      "tralokinumab",
+      "lebrikizumab"
+    ],
+    "il13": [
+      "tralokinumab",
+      "lebrikizumab"
+    ],
+    "il-4": [
+      "dupilumab"
+    ],
+    "il4": [
+      "dupilumab"
+    ],
+    "jak1": [
+      "upadacitinib",
+      "abrocitinib"
+    ],
+    "jak": [
+      "upadacitinib",
+      "baricitinib",
+      "abrocitinib"
+    ]
+  },
+  "efficacy_endpoints": [
+    "EASI 100",
+    "EASI 90",
+    "EASI 75",
+    "EASI 50",
+    "vIGA-AD 0/1",
+    "IGA 0/1",
+    "SCORAD 75",
+    "SCORAD 50"
+  ],
+  "safety_terms": [],
+  "endpoint_examples": "EASI-75, IGA 0/1, itch NRS",
+  "extra_queries": [],
+  "example_questions": [
+    [
+      "Efficacy",
+      ":material/trending_up:",
+      [
+        "Is lebrikizumab effective for atopic dermatitis?",
+        "What is the efficacy of dupilumab in atopic dermatitis?"
+      ]
+    ],
+    [
+      "Safety",
+      ":material/health_and_safety:",
+      [
+        "What are the most common adverse events of upadacitinib?",
+        "Is baricitinib safe for long-term use in atopic dermatitis?"
+      ]
+    ],
+    [
+      "Comparison",
+      ":material/compare_arrows:",
+      [
+        "How does dupilumab compare to tralokinumab in safety?",
+        "Dupilumab vs upadacitinib efficacy in atopic dermatitis?"
+      ]
+    ]
+  ],
+  "legacy_collections": true
+}

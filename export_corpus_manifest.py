@@ -109,7 +109,9 @@ def exportar(nombre_coleccion):
 
     filas = sorted(docs.values(), key=lambda d: (d["source"], d["doc_id"]))
 
-    salida_csv = config.DATA_DIR / "corpus_manifest.csv"
+    # Ruta por dominio (config.MANIFEST_CSV): el perfil original escribe
+    # data/corpus_manifest.csv como siempre; otro dominio, corpus_manifest_<slug>.csv.
+    salida_csv = config.MANIFEST_CSV
     campos = ["doc_id", "source", "title", "url", "drugs", "access", "doi",
               "n_chunks", "en_bronze"]
     with open(salida_csv, "w", encoding="utf-8", newline="") as fh:
@@ -118,7 +120,7 @@ def exportar(nombre_coleccion):
         escritor.writerows(filas)
 
     pmids = [d["doc_id"] for d in filas if d["source"] == "pubmed"]
-    salida_pmids = config.DATA_DIR / "corpus_pmids.txt"
+    salida_pmids = config.MANIFEST_PMIDS
     salida_pmids.write_text("\n".join(pmids) + "\n", encoding="utf-8")
 
     # Resumen por consola (lo interesante para el TFM).

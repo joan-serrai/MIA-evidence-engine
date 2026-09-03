@@ -51,39 +51,37 @@ except Exception:
 # para poder cambiarlo sin tocar la config de producto; hoy = el juez neutral.
 AGENT_MODEL = config.LLM_JUDGE   # "qwen2.5:7b"
 
-# Fármacos por clase terapéutica (desde config → una sola fuente de verdad).
-_BIOLOGICS = [d.lower() for d in config.BIOLOGICS]        # anti-interleucina (anticuerpos)
-_JAKS = [d.lower() for d in config.JAK_INHIBITORS]        # inhibidores JAK (orales)
-_ALL_DRUGS = [d.lower() for d in config.ALL_DRUGS]
+# GENERALIZACIÓN (3-sep-2026): fármacos por clase, mecanismos y colección se leen
+# de `config` EN CADA LLAMADA (no se copian al importar), para que el perfil de
+# dominio activo pueda cambiar en caliente desde la interfaz. En el perfil de
+# dermatitis atópica las clases son "biologics" (anti-IL) y "jak_inhibitors";
+# en otro dominio serán las que defina su domains/<slug>.json.
 
 # Palabra con sufijo típico de fármaco (-mab anticuerpo, -nib/-ib inhibidor).
 _DRUG_RE = re.compile(r"\b[a-z]{4,}(?:mab|nib|ib)\b")
 
+
+def _all_drugs():
+    return [d.lower() for d in config.ALL_DRUGS]
+
+
 # Mapa mecanismo→fármaco(s) para el FALLBACK determinista y para dar contexto.
-# El orden importa: se prueban las claves más específicas primero.
-# ⚠ Para IL-13 el negativo NUNCA es dupilumab (también bloquea IL-13 vía IL-4Rα):
-#    la regla por clase (biológico↔JAK) lo evita sola, pero se documenta aquí.
-_MECHANISM_MAP = [
-    ("il-31",  ["nemolizumab"]),
-    ("il31",   ["nemolizumab"]),
-    ("il-13",  ["tralokinumab", "lebrikizumab"]),
-    ("il13",   ["tralokinumab", "lebrikizumab"]),
-    ("il-4",   ["dupilumab"]),
-    ("il4",    ["dupilumab"]),
-    ("jak1",   ["upadacitinib", "abrocitinib"]),
-    ("jak",    ["upadacitinib", "baricitinib", "abrocitinib"]),
-]
+# El orden importa: se prueban las claves más específicas primero (es el orden
+# del perfil). ⚠ En el perfil de AD, para IL-13 el negativo NUNCA es dupilumab
+# (también bloquea IL-13 vía IL-4Rα): la regla por clase lo evita sola.
+def _mechanism_map():
+    return [(k.lower(), [d.lower() for d in v]) for k, v in config.MECHANISMS.items()]
 
 
 # --------------------------------------------------------------------------
 # Utilidades de fármacos (clase, canonicalización, elección de negativo)
 # --------------------------------------------------------------------------
 def _drug_class(drug):
+    """Clave de la clase terapéutica del fármaco según el perfil (o None)."""
     d = (drug or "").lower()
-    if d in _BIOLOGICS:
-        return "biologic"
-    if d in _JAKS:
-        return "jak"
+    for clase, farmacos in config.DRUG_CLASSES.items():
+        if d in [x.lower() for x in farmacos]:
+            return clase
     return None
 
 
@@ -93,7 +91,7 @@ def _canonical_drug(text):
     if not text:
         return None
     low = text.lower()
-    for d in _ALL_DRUGS:                 # fármaco conocido mencionado
+    for d in _all_drugs():               # fármaco conocido mencionado
         if d in low:
             return d
     m = _DRUG_RE.findall(low)            # patrón de fármaco (p. ej. 'ruxolitinib')
@@ -101,13 +99,20 @@ def _canonical_drug(text):
 
 
 def _pick_negative(positive):
-    """Elige un distractor de la CLASE OPUESTA al positivo (biológico↔JAK).
-    Así el negativo nunca es de la misma familia (y para IL-13 nunca es dupilumab,
-    porque el positivo IL-13 es biológico → el negativo sale de los JAK)."""
+    """Elige un distractor de una CLASE DISTINTA a la del positivo (en AD:
+    biológico↔JAK). Así el negativo nunca es de la misma familia (y para IL-13
+    nunca es dupilumab, porque el positivo IL-13 es biológico → el negativo sale
+    de los JAK). Si el perfil solo tiene una clase, cae a otro fármaco cualquiera."""
     clase = _drug_class(positive)
-    opuestos = _JAKS if clase == "biologic" else _BIOLOGICS
-    for d in opuestos:
-        if d != (positive or "").lower():
+    pos = (positive or "").lower()
+    for otra, farmacos in config.DRUG_CLASSES.items():
+        if otra == clase:
+            continue
+        for d in farmacos:
+            if d.lower() != pos:
+                return d.lower()
+    for d in _all_drugs():               # perfil de una sola clase
+        if d != pos:
             return d
     return None
 
@@ -116,25 +121,24 @@ def _pick_negative(positive):
 # Verificación contra el corpus (el guardarraíl). chromadb se importa en
 # caliente para no acoplar el import del módulo (y poder testear sin Chroma).
 # --------------------------------------------------------------------------
-_CORPUS_DRUGS = None   # cache: conjunto de fármacos presentes en el corpus
-
-# Colección para verificar: los 'drugs' de metadata son IGUALES en las dos
-# colecciones (solo cambia el vector), así que usamos la de MedCPT (producto).
-_VERIFY_COLLECTION = "mia_evidence_medcpt"
+_CORPUS_DRUGS = {}   # cache por dominio: slug → conjunto de fármacos presentes en el corpus
 
 
 def corpus_drugs():
     """Conjunto (en minúscula) de fármacos que aparecen en el corpus, leyendo la
-    metadata 'drugs' de Chroma UNA vez (cacheado). Si Chroma no está disponible,
-    cae a los fármacos conocidos de config (para no bloquear en desarrollo)."""
-    global _CORPUS_DRUGS
-    if _CORPUS_DRUGS is not None:
-        return _CORPUS_DRUGS
+    metadata 'drugs' de Chroma UNA vez por dominio (cacheado). Si Chroma no está
+    disponible, cae a los fármacos conocidos de config (para no bloquear en desarrollo).
+
+    Colección para verificar: los 'drugs' de metadata son IGUALES en las dos
+    colecciones (solo cambia el vector), así que usamos la de MedCPT (producto)."""
+    slug = config.DOMAIN_SLUG
+    if slug in _CORPUS_DRUGS:
+        return _CORPUS_DRUGS[slug]
     presentes = set()
     try:
         import chromadb
         client = chromadb.PersistentClient(path=str(config.CHROMA_DIR))
-        col = client.get_collection(_VERIFY_COLLECTION)
+        col = client.get_collection(config.collection_name("medcpt"))
         got = col.get(include=["metadatas"])
         for meta in got.get("metadatas", []) or []:
             for d in (meta.get("drugs") or "").lower().replace(",", ";").split(";"):
@@ -144,9 +148,9 @@ def corpus_drugs():
     except Exception as e:
         print(f"   [triplet_agent] aviso: no pude leer el corpus ({e}); "
               f"uso los fármacos de config como verificación de respaldo.")
-        presentes = set(_ALL_DRUGS)
-    _CORPUS_DRUGS = presentes
-    return _CORPUS_DRUGS
+        presentes = set(_all_drugs())
+    _CORPUS_DRUGS[slug] = presentes
+    return presentes
 
 
 def drug_in_corpus(drug):
@@ -163,15 +167,17 @@ def drug_in_corpus(drug):
 def _llm_catalog(question):
     """Pide a qwen un triplete {anchor, positive, negative} en JSON. Devuelve
     el dict crudo o None si falla/degenera (lo valida quien llama)."""
-    hint = (", ".join(config.BIOLOGICS) + " (anti-interleukin antibodies); "
-            + ", ".join(config.JAK_INHIBITORS) + " (JAK inhibitors)")
+    disease = config.DISEASE.lower()
+    hint = "; ".join(
+        ", ".join(farmacos) + f" ({config.CLASS_LABELS.get(clase, clase.replace('_', ' '))})"
+        for clase, farmacos in config.DRUG_CLASSES.items() if farmacos)
     prompt = (
-        "You are a biomedical annotator for atopic dermatitis drug research.\n"
+        f"You are a biomedical annotator for {disease} drug research.\n"
         "Given the user question, identify a semantic triplet:\n"
         '- "anchor": a short phrase (<=12 words) with the core mechanism/concept asked.\n'
-        '- "positive": the ONE atopic dermatitis drug (generic name) that best answers it.\n'
-        '- "negative": ONE atopic dermatitis drug from a DIFFERENT class that does NOT answer it.\n'
-        f"Known atopic dermatitis drugs: {hint}.\n"
+        f'- "positive": the ONE {disease} drug (generic name) that best answers it.\n'
+        f'- "negative": ONE {disease} drug from a DIFFERENT class that does NOT answer it.\n'
+        f"Known {disease} drugs: {hint}.\n"
         'Reply with ONLY a JSON object like '
         '{"anchor":"...","positive":"...","negative":"..."} and nothing else.\n\n'
         f"Question: {question}"
@@ -217,7 +223,7 @@ def _fallback_catalog(question):
                 "negative": neg, "_via": "farmaco nombrado"}
 
     # 2) ¿menciona un mecanismo del mapa? → primer fármaco de ese mecanismo.
-    for clave, farmacos in _MECHANISM_MAP:
+    for clave, farmacos in _mechanism_map():
         if clave in low:
             pos = farmacos[0]
             return {"anchor": question.strip(), "positive": pos,

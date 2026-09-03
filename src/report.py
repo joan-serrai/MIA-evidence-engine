@@ -37,13 +37,12 @@ except (ImportError, ValueError):
 # --------------------------------------------------------------------------
 # Helpers de presentación (copias locales y pequeñas: el informe NO importa la app)
 # --------------------------------------------------------------------------
-def _confidence_pct(sim):
-    """Similarity cruda → % de confianza 0-100 (misma convención que la UI)."""
-    if getattr(config, "EMBEDDING_BACKEND", "") == "medcpt":
-        pct = (float(sim) - 55.0) / (80.0 - 55.0) * 100.0
-    else:
-        pct = float(sim) * 100.0
-    return int(round(max(0.0, min(100.0, pct))))
+# RETIRADA el 1-sep-2026: `_confidence_pct`. El informe llevaba una tabla
+# "Retrieval confidence" con el % de cada paper. Se quita por el mismo motivo que
+# en la app (ver app/streamlit_app.py): el lector la interpretaba como "este paper
+# responde mejor a la pregunta", cuando solo mide proximidad en el espacio del
+# embedding — y en preguntas genéricas los 5 papers empatan. Un informe destinado
+# a imprimirse y circular es justo donde un número mal entendido hace más daño.
 
 
 def _source_label(source):
@@ -76,8 +75,8 @@ def _relevance_reason(f):
     if mets:
         partes.append("reports " + html.escape(", ".join(mets[:3])))
     detalle = ("; ".join(partes) + ". " if partes else "")
-    return (detalle + "Retrieved for topical affinity with the question, but the "
-            "answer did not rely on it.")
+    return (detalle + "Retrieved for the same topic, but no sentence in the answer "
+            "could be traced to it with confidence.")
 
 
 def _split_cited(answer_text, sources):
@@ -203,21 +202,8 @@ def build_report_html(question, data, generated_at=None):
                         "appendix below.</p>")
         titulo_citadas = "<h2>Cited sources</h2>"
 
-    # --- Apéndice PLEGADO: confianza + recuperadas no citadas ---
-    filas_conf = "".join(
-        f"<tr><td><span class='doc'>Doc {int(f.get('n',0))}</span></td>"
-        f"<td>{html.escape((f.get('title') or '')[:80])}</td>"
-        f"<td class='num'>{_confidence_pct(f.get('similarity', 0) or 0)}%</td></tr>"
-        for f in sources
-    )
-    tabla_conf = (
-        "<div class='kd-kind'>Retrieval confidence</div>"
-        "<p class='muted'>How closely each paper matched the question, per the "
-        "MedCPT biomedical embedding. It measures retrieval affinity, not clinical "
-        "quality.</p>"
-        f"<table class='kd'>{filas_conf}</table>" if sources else ""
-    )
-
+    # --- Apéndice PLEGADO: recuperadas no citadas ---
+    # (La tabla "Retrieval confidence" con el % por paper se retiró el 1-sep-2026.)
     if otras:
         filas = "".join(
             f"<li><div class='s-top'><span class='doc'>Doc {int(f.get('n',0))}</span> "
@@ -233,9 +219,9 @@ def build_report_html(question, data, generated_at=None):
 
     detalles = (
         "<details class='more'><summary>Retrieval details "
-        "(confidence and evidence not used)</summary>"
-        f"{tabla_conf}{no_citadas}</details>"
-    )
+        "(papers read but not cited)</summary>"
+        f"{no_citadas}</details>"
+    ) if no_citadas else ""
 
     return _TEMPLATE.format(
         disease=disease,

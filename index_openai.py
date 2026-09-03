@@ -27,8 +27,10 @@ try:
 except Exception:
     pass
 
-SOURCE_COLLECTION = "mia_evidence_medcpt"   # de aquí copiamos los chunks (mismos textos)
-TARGET_COLLECTION = "mia_evidence_openai"   # aquí escribimos los vectores de OpenAI
+# Colecciones del DOMINIO ACTIVO (config.collection_name): para el perfil original
+# son mia_evidence_medcpt / mia_evidence_openai; para otro, mia_<slug>_medcpt / _openai.
+SOURCE_COLLECTION = config.collection_name("medcpt")   # de aquí copiamos los chunks (mismos textos)
+TARGET_COLLECTION = config.collection_name("openai")   # aquí escribimos los vectores de OpenAI
 
 
 def run():

@@ -44,9 +44,9 @@ except Exception:
 # fuera: la página es a dos columnas. 'engine' es la etiqueta técnica legible.
 BACKENDS = [
     {"label": "MIA", "engine": "MedCPT", "backend": "medcpt",
-     "collection": "mia_evidence_medcpt"},
+     "collection": config.collection_name("medcpt")},     # según el dominio activo
     {"label": "Centivence", "engine": "OpenAI 3-small", "backend": "openai",
-     "collection": "mia_evidence_openai"},
+     "collection": config.collection_name("openai")},
 ]
 
 

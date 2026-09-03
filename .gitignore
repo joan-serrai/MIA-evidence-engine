@@ -27,3 +27,9 @@ data/chroma/*
 .DS_Store
 .vscode/
 .ipynb_checkpoints/
+
+# Perfil de dominio activo (estado local del usuario, no del proyecto)
+domains/active.txt
+
+# Salidas de demo / pruebas
+data/_report_demo.html

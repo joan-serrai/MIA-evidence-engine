@@ -136,7 +136,7 @@ def run_scout(question, max_results=20):
     """
     term = _extract_search_term(question)
     # Acotamos siempre a la enfermedad del proyecto para no traer ruido.
-    search = f"{term} AND {config.DISEASE}"
+    search = f"{term} AND {config.DISEASE_QUERY}"
     print(f"   [scout] término de búsqueda: '{search}'")
 
     ct_path = ingestion.search_clinical_trials(search, max_results)

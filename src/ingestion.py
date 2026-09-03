@@ -307,22 +307,33 @@ def search_pubmed(term, max_results=20):
 # --------------------------------------------------------------------------
 
 def run(max_results=50):
-    """Descarga ambas fuentes para todos los fármacos de config.DRUGS."""
+    """Descarga ambas fuentes para todos los fármacos de config.DRUGS del perfil
+    de dominio activo, y después las búsquedas libres extra del perfil
+    (config.EXTRA_QUERIES: p. ej. un mecanismo — "IL-17 inhibitor" — para traer
+    evidencia que no nombra ningún fármaco concreto)."""
     print("=" * 60)
     print(" MIA · Fase 1 — Ingesta de datos (bronze)")
     print("=" * 60)
     total_ct, total_pm = 0, 0
     for drug in tqdm(config.DRUGS, desc="Fármacos"):
         try:
-            ct = fetch_clinical_trials(config.DISEASE, drug, max_results)
+            ct = fetch_clinical_trials(config.DISEASE_QUERY, drug, max_results)
             total_ct += len(ct)
         except Exception as e:
             print(f"   [error] ClinicalTrials/{drug}: {e}")
         try:
-            pm = fetch_pubmed(config.DISEASE, drug, max_results)
+            pm = fetch_pubmed(config.DISEASE_QUERY, drug, max_results)
             total_pm += len(pm)
         except Exception as e:
             print(f"   [error] PubMed/{drug}: {e}")
+    for extra in config.EXTRA_QUERIES:
+        term = f"{extra} AND {config.DISEASE_QUERY}"
+        try:
+            p_ct = search_clinical_trials(term, max_results)
+            p_pm = search_pubmed(term, max_results)
+            print(f"   [extra] '{extra}': CT {'sí' if p_ct else 'no'} · PubMed {'sí' if p_pm else 'no'}")
+        except Exception as e:
+            print(f"   [error] búsqueda extra '{extra}': {e}")
     print("-" * 60)
     print(f"Ensayos clínicos descargados: {total_ct}")
     print(f"Abstracts PubMed descargados: {total_pm}")

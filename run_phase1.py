@@ -28,7 +28,13 @@ def main():
     parser = argparse.ArgumentParser(description="Fase 1 de MIA: ingesta + procesado + indexado")
     parser.add_argument("--max", type=int, default=50,
                         help="máx. resultados por fármaco y fuente (def: 50)")
+    parser.add_argument("--domain", default=None,
+                        help="perfil de dominio (domains/<slug>.json); por defecto el activo")
     args = parser.parse_args()
+    if args.domain:
+        config.activate_domain(args.domain)
+    print(f"Dominio activo: {config.DOMAIN_SLUG} — {config.DISEASE} "
+          f"({len(config.DRUGS)} fármacos) → colección {config.CHROMA_COLLECTION}")
 
     print("\n########## FASE 1 · PASO 1/2: INGESTA ##########\n")
     ingestion.run(max_results=args.max)
