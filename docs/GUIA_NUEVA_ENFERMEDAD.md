@@ -136,6 +136,14 @@ cita igual; solo el gráfico de barras quedará vacío.
 
 ## 3. Paso 2 · Crear el perfil y descargar la evidencia (vía A)
 
+> **Sin terminal.** Desde el 4-sep-2026 todo este paso se puede hacer desde la propia app,
+> en la pestaña **Build corpus**: escribes la enfermedad, pulsas *Suggest drugs* para que
+> te proponga los fármacos más estudiados, marcas los que quieras, añades mecanismos y
+> endpoints, eliges la cobertura (*Quick* 30 · *Standard* 100, la recomendada · *Exhaustive*
+> 500 · *No cap*, todo lo que haya, con aviso de que son horas y varios GB) y pulsas
+> **Build corpus**. Verás el progreso en pantalla y, al acabar, el perfil ya está activo
+> en la pestaña MIA. Por debajo se ejecuta exactamente el comando de abajo.
+
 Un solo comando hace todo: escribe el perfil, descarga, indexa y exporta el censo.
 
 ```powershell
@@ -172,8 +180,10 @@ Qué significa cada opción:
 | `--skip-download` | Reindexa lo que ya haya en `data/bronze/<slug>/` sin volver a descargar |
 | `--openai` | Construye también la colección gemela de OpenAI para la página de comparación (necesita `OPENAI_API_KEY` en `.env`; no hace falta para usar MIA) |
 
-**Cuánto tarda.** Medido el 3-sep-2026 con psoriasis (3 fármacos, `--max 50`): 584
-fragmentos indexados en unos minutos en CPU. La descarga va a ~1 segundo por fármaco y
+**Cuánto tarda.** Medido el 4-sep-2026 con psoriasis (3 fármacos, `--max 50`, más una
+búsqueda extra): 335 documentos y 2.099 fragmentos en unos minutos en CPU. Los ensayos
+de ClinicalTrials.gov con resultados publicados son largos (hasta 15 fragmentos cada
+uno), por eso el número de fragmentos crece más que el de documentos. La descarga va a ~1 segundo por fármaco y
 fuente (PubMed limita a 3 peticiones/segundo); lo lento es vectorizar, a grandes rasgos un
 minuto por cada 1.000 fragmentos sin GPU.
 
@@ -237,6 +247,14 @@ mismo (ver `TASKS.md`).
 
 El perfil resultante está en el repositorio como segundo ejemplo:
 `domains/retinoblastoma.json`.
+
+**Una trampa que salió en esta prueba y ya está corregida.** *Retinoblastoma* es también el
+nombre de una **proteína** (Rb) que aparece en miles de papers de cáncer de mama, pulmón o
+sarcoma. Buscando la enfermedad como texto libre, el corpus se llenaba de esos papers y el
+Scout llegó a responder sobre cáncer de mama. Ahora MIA acota la enfermedad en PubMed a su
+descriptor **MeSH** o al título (con vuelta al texto libre si no encuentra nada), y en
+ClinicalTrials.gov al campo *condición*: de 6 documentos ajenos a 1. Si tu enfermedad
+comparte nombre con un gen o una proteína, revisa igualmente el censo CSV.
 
 ---
 

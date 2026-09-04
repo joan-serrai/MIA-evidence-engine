@@ -27,10 +27,12 @@ except Exception:
 def main():
     parser = argparse.ArgumentParser(description="Fase 1 de MIA: ingesta + procesado + indexado")
     parser.add_argument("--max", type=int, default=50,
-                        help="máx. resultados por fármaco y fuente (def: 50)")
+                        help="máx. resultados por fármaco y fuente (def: 50; 0 = SIN TOPE, todo lo que haya)")
     parser.add_argument("--domain", default=None,
                         help="perfil de dominio (domains/<slug>.json); por defecto el activo")
     args = parser.parse_args()
+    if args.max == 0:
+        args.max = None   # sin tope
     if args.domain:
         config.activate_domain(args.domain)
     print(f"Dominio activo: {config.DOMAIN_SLUG} — {config.DISEASE} "

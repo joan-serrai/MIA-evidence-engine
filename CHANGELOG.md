@@ -25,6 +25,106 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-04 (tarde) · Pestañas, corpus desde la app, Scout acotado por MeSH y lectura relacionada
+
+Bloque de seis peticiones del autor tras probar MIA con psoriasis y retinoblastoma.
+Decisiones tomadas con él: la comparativa Centivence se queda en `master` y **no** irá
+en la rama pública; los comentarios llegan por las *Issues* de GitHub; la cobertura
+por defecto es "estándar" y existe la opción "sin tope" con aviso.
+
+### Añadido — la app tiene pestañas y los ajustes van a la derecha
+`app/streamlit_app.py` pasa a `layout="wide"` con tres pestañas: **MIA** (chat a la
+izquierda, ajustes a la derecha: Scout, perfil de patología, modelos, estado),
+**Build corpus** y **About**. La barra lateral ya no lleva ajustes. **Motivo:** el
+Scout y el selector de enfermedad son parte del uso normal, no un menú escondido.
+
+### Añadido — `app/corpus_tab.py`: construir el corpus sin terminal
+Formulario: enfermedad, sinónimos, botón *Suggest drugs* (cuenta ensayos en
+ClinicalTrials.gov, como `suggest_drugs.py`), fármacos, mecanismos, endpoints,
+búsquedas extra, cobertura (rápida 30 / **estándar 100** / exhaustiva 500 / **sin
+tope** con aviso de horas y GB) y activación. Lanza `build_corpus.py` como
+**subproceso** y enseña su salida en vivo. **Motivo del subproceso:** la tubería dura
+minutos, así la interfaz sigue viva y hay UNA sola tubería que mantener (la misma que
+usa la terminal). Enseña además la tabla de perfiles guardados con su nº de
+fragmentos: es la "memoria" que pedía el autor, y ya existía (`domains/*.json` +
+`data/chroma/`), solo faltaba verla.
+**Trampa encontrada:** `st.dataframe` necesita *pyarrow*, y en este equipo el Control
+de Aplicaciones de Windows bloquea su DLL. Las tablas van en Markdown.
+
+### Añadido — `app/about_tab.py`
+Qué es MIA, cómo funciona, qué se ha medido, límites conocidos, aviso de fase
+experimental (no es un producto sanitario) y botones de *feedback* que abren una
+*Issue* de GitHub con la versión, el perfil y los modelos ya rellenos
+(`config.APP_VERSION`, `config.REPO_URL`, pendiente de la URL definitiva).
+
+### Añadido — lectura relacionada
+`rag.answer` devuelve `related`: hasta `config.RELATED_K` documentos que quedaron
+justo detrás de los cinco del contexto y superan el umbral. La app los enseña en un
+desplegable "Related reading" con enlace, separados de las fuentes para no sugerir
+que la respuesta se apoya en ellos. **Motivo:** cuando el Scout importa evidencia,
+la respuesta cita cinco papers, pero hay más que responden a lo mismo.
+
+### Cambiado — descarga sin tope y `efetch` por lotes
+`--max 0` = sin tope en `build_corpus.py` y `run_phase1.py` (`None` en
+`ingestion`). PubMed se pide con `retmax` 10.000 y los abstracts se bajan en lotes
+de 200 PMID fusionados en un solo XML (antes, un GET con miles de ids reventaba la
+URL). CT.gov pagina de 1.000 en 1.000.
+
+### Corregido — el Scout traía la PROTEÍNA del retinoblastoma (medido)
+Prueba del Scout con *"Is abemaciclib effective for retinoblastoma?"*: importó 122
+chunks y respondió **"Abemaciclib is not effective for retinoblastoma."**, una frase,
+sin cita. Al mirar las fuentes: el Doc 1 era un ensayo de **cáncer de mama
+"Rb-positivo"** y otro de liposarcoma — `retinoblastoma` como texto libre en PubMed
+casa con la proteína Rb. Y el corpus base tenía 6 de 195 documentos de pulmón y
+próstata (*RB1-mutated*) por la misma razón.
+**Arreglo:** `ingestion.pubmed_disease_clause` acota la enfermedad a
+`"X"[MeSH Terms] OR "X"[Title]` (con fallback a texto libre si no devuelve nada), en
+la ingesta, en las búsquedas extra y en el Scout; CT.gov se acota por el campo
+`query.cond`. **Medido tras reconstruir retinoblastoma:** 188 documentos, **1**
+sospechoso (un ensayo de CT.gov, antes 6). El Scout con el mismo fármaco pasó a 41
+chunks con fuentes de retinoblastoma. Queda una fuga: un paper cuyo TÍTULO dice
+"Retinoblastoma-Positive Breast Cancer" entra por la cláusula `[Title]`; quitarla
+perdería los papers recientes sin MeSH. Anotado en `TASKS.md`.
+
+### Medido — de punta a punta desde la interfaz (vitíligo)
+Con la app: pestaña *Build corpus* → "Vitiligo", fármaco "ruxolitinib", endpoint
+"F-VASI 75", cobertura *Quick* → 45 documentos, 133 chunks, perfil activo → pestaña
+MIA → botón de ejemplo *"Is ruxolitinib effective for vitiligo?"* → respuesta de 4
+frases con 2 fuentes citadas (una revisión de inhibidores JAK y un ensayo de CT.gov),
+aviso de "solo resumen" y desplegable de lectura relacionada. El perfil de prueba se
+borró después. Tras el éxito la app hace `st.rerun()` y vuelve a la pestaña MIA con el
+aviso: sin eso, la tabla de perfiles (pintada antes de construir) no enseñaba el nuevo.
+
+### Corregido — etiquetas de fármaco de las búsquedas extra y del Scout
+Los documentos traídos por una búsqueda extra llegaban etiquetados con el término
+entero (`IL-17 inhibitor AND (Plaque psoriasis OR psoriasis)`) y así salían en las
+píldoras de la interfaz. `processing._drug_labels` conserva la etiqueta si es un
+fármaco del perfil y, si no, etiqueta los fármacos del perfil que el texto menciona
+(o el slug del dominio). Psoriasis y retinoblastoma reindexados; con prueba pura.
+
+### Corregido — el veredicto de la comparativa, en inglés y diciendo qué decidió
+`verdict._verdict_text` estaba en español (la UI es inglesa) y solo hablaba del
+puesto: con psoriasis decía *"OpenAI puso el fármaco correcto en el puesto 2; MedCPT
+lo puso en el puesto 2"* como si fuera una victoria. La decisión venía del nº de
+documentos on-target. Ahora nombra la métrica que decidió (hit@1 → on-target → AUC →
+triplete) y resume ambas columnas.
+
+### Medido — la página de comparación con los perfiles nuevos
+Con psoriasis y retinoblastoma la página fallaba con un error claro ("Collection
+mia_plaque_psoriasis_openai does not exist… run index_openai.py"): la comparativa
+necesita la colección gemela de OpenAI, que `build_corpus.py` solo construye con
+`--openai`. Se construyeron para los dos perfiles (584 y 605 chunks, céntimos) y la
+página funciona con ambos. Recordatorio: esta página NO irá en la rama pública.
+
+### Corregido — las preguntas de sí/no daban un veredicto de una frase
+Con la misma evidencia, *"Is abemaciclib effective…?"* daba una frase sin cita y
+*"What is the evidence for abemaciclib…?"* daba tres frases citadas. Es el tic de
+examen de OpenBioLLM disparado por la FORMA de la pregunta. `rag.open_phrasing`
+antepone al redactor *"Summarize the evidence relevant to this question, with the
+specific findings:"*; la recuperación, la intención y la interfaz siguen usando la
+pregunta original. **Medido:** de 1 frase sin cita a 4 frases con 2 citas. Con
+pruebas puras.
+
 ## 2026-09-04 · Guía para cualquier enfermedad, `suggest_drugs.py` y barrido de seguridad
 
 Objetivo de la sesión: que alguien que se descargue MIA de GitHub pueda cargar **su**

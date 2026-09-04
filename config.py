@@ -88,6 +88,7 @@ LLM_JUDGE = "qwen2.5:7b"
 CHUNK_SIZE = 800        # caracteres por fragmento
 CHUNK_OVERLAP = 120     # solape entre fragmentos (para no cortar ideas a la mitad)
 TOP_K = 5               # nº de DOCUMENTOS únicos que citamos por pregunta
+RELATED_K = 5           # nº de documentos extra de "lectura relacionada" (no citados)
 
 # Presupuesto de caracteres para el CONTEXTO que enviamos al LLM.
 # Ollama corre con num_ctx=8192 TOKENS. Como una fuente ahora une VARIOS chunks
@@ -122,14 +123,22 @@ else:
 CHROMA_SPACE = "ip" if EMBEDDING_BACKEND == "medcpt" else "cosine"
 
 # --------------------------------------------------------------------------
-# 4) APIs públicas (gratuitas, sin enviar datos privados)
+# 4) Identidad de la app (pestaña "About") y contacto para comentarios
+# --------------------------------------------------------------------------
+APP_VERSION = "1.1.0-beta"   # fase experimental: se dice en la interfaz
+# URL del repositorio público. Los comentarios de los usuarios llegan por sus
+# "Issues". PENDIENTE: poner la URL definitiva al publicar en GitHub.
+REPO_URL = "https://github.com/jserrallonga/MIA"
+
+# --------------------------------------------------------------------------
+# 5) APIs públicas (gratuitas, sin enviar datos privados)
 # --------------------------------------------------------------------------
 CLINICALTRIALS_API = "https://clinicaltrials.gov/api/v2/studies"
 PUBMED_EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
 # ==========================================================================
-# 5) PERFILES DE DOMINIO (enfermedad + fármacos + endpoints)
+# 6) PERFILES DE DOMINIO (enfermedad + fármacos + endpoints)
 # ==========================================================================
 
 def slugify(texto):

@@ -176,24 +176,43 @@ def _metrics_for(cfg, question, anchor, positive, negative, target_drugs):
 
 
 def _verdict_text(winner, per_backend, positive):
-    """Frase legible del veredicto (para pintar arriba de las columnas)."""
-    if winner is None:
-        return ("Empate: ambos modelos entendieron esta pregunta de forma "
-                "equivalente (mismo hit@1 y cobertura del fármaco correcto).")
-    gan = next(m for m in per_backend if m["label"] == winner)
-    otros = [m for m in per_backend if m["label"] != winner]
-    otro = otros[0] if otros else None
+    """Readable verdict line (shown above the two columns). IN ENGLISH: the UI is.
+
+    Says WHICH metric decided (the same order as `_key`: hit@1, then on-target
+    count, then question AUC, then the live triplet). Before, the text only
+    mentioned the rank, so a tie on rank read as a contradiction ("put it at rank
+    2; the other put it at rank 2") when the decision had come from the AUC.
+    """
     farmaco = f" ({positive})" if positive else ""
 
     def rank_phrase(m):
         r = m["first_correct_rank"]
-        return f"lo puso en el puesto {r}" if r else "no lo trajo en el top-k"
+        return f"first correct{farmaco} at rank {r}" if r else f"no correct{farmaco} document in the top-k"
 
-    rg = gan["first_correct_rank"]
-    head = (f"puso el fármaco correcto{farmaco} en el puesto {rg}" if rg
-            else f"rankeó mejor la evidencia correcta{farmaco}")
-    tail = f"; {otro['engine']} {rank_phrase(otro)}" if otro else ""
-    return f"{gan['engine']} entendió mejor esta pregunta: {head}{tail}."
+    def summary(m):
+        auc = "n/a" if m["auc"] is None else f"{m['auc']:.2f}"
+        return (f"{m['engine']}: {rank_phrase(m)}, {m['n_on_target'] or 0}/{m['total']} "
+                f"on-target, AUC {auc}")
+
+    if winner is None:
+        return ("Tie: both models understood this question equally well ("
+                + "; ".join(summary(m) for m in per_backend) + ").")
+    gan = next(m for m in per_backend if m["label"] == winner)
+    otros = [m for m in per_backend if m["label"] != winner]
+    otro = otros[0] if otros else None
+    # Which metric decided? The first one where the winner differs from the other.
+    decidio = "overall"
+    if otro is not None:
+        if bool(gan["hit1"]) != bool(otro["hit1"]):
+            decidio = "it placed the correct drug first (hit@1)"
+        elif (gan["n_on_target"] or 0) != (otro["n_on_target"] or 0):
+            decidio = "more of its top-k documents were on-target"
+        elif (gan["auc"] or -1) != (otro["auc"] or -1):
+            decidio = "its question-level AUC was higher"
+        else:
+            decidio = "it passed the live triplet"
+    tail = f" · {summary(otro)}" if otro else ""
+    return f"{gan['engine']} understood this question better — {decidio}. {summary(gan)}{tail}."
 
 
 def question_verdict(question, target_drugs=None, backends=None):

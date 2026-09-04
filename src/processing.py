@@ -52,6 +52,25 @@ def _normalize_text(texto):
     return texto.strip()
 
 
+def _drug_labels(label, texto):
+    """Etiquetas de fármaco de un documento.
+
+    Los archivos bronze de los fármacos del perfil vienen etiquetados con el
+    fármaco buscado ("ct_dupilumab.json" → 'dupilumab'). Pero los del Scout y los de
+    las búsquedas EXTRA vienen con el término de búsqueda entero ("IL-17 inhibitor
+    AND (Plaque psoriasis OR psoriasis)"), que acababa pintado tal cual en las
+    píldoras de la interfaz. Aquí: si la etiqueta es un fármaco conocido del perfil,
+    se conserva; si no, se etiquetan los fármacos del perfil que el TEXTO menciona
+    y, si no menciona ninguno, el slug del dominio (p. ej. 'plaque_psoriasis').
+    """
+    conocidos = [d.lower() for d in config.ALL_DRUGS]
+    if (label or "").lower() in conocidos:
+        return [label.lower()]
+    low = (texto or "").lower()
+    en_texto = [d for d in conocidos if d in low]
+    return en_texto or [config.DOMAIN_SLUG]
+
+
 def _parse_clinical_trials(path, drug):
     """Convierte un ct_<drug>.json en documentos uniformes."""
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -84,7 +103,7 @@ def _parse_clinical_trials(path, drug):
             "title": _normalize_text(titulo),
             "text": texto,
             "authors": [],  # ClinicalTrials no da autores como tal
-            "drugs": [drug],
+            "drugs": _drug_labels(drug, texto),
             "disease": config.DISEASE,
             "url": f"https://clinicaltrials.gov/study/{nct}",
             # Los registros de ClinicalTrials.gov son públicos por diseño (el
@@ -376,7 +395,7 @@ def _parse_pubmed(path, drug):
             "title": _normalize_text(titulo),
             "text": texto,
             "authors": autores,
-            "drugs": [drug],
+            "drugs": _drug_labels(drug, texto),
             "disease": config.DISEASE,
             "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
             "doi": doi,

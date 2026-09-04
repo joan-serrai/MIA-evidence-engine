@@ -79,6 +79,7 @@ Dos "marcas" recurrentes en el código y la UI:
 # OTRA ENFERMEDAD — crear un perfil de dominio y descargar/indexar su corpus (ver §10)
 ./.venv/Scripts/python.exe build_corpus.py --disease "Plaque psoriasis" --synonym psoriasis --class "il17_biologics=secukinumab,ixekizumab" --endpoint "PASI 75" --max 50 --activate
 ./.venv/Scripts/python.exe run_phase1.py --domain plaque_psoriasis   # reindexar un perfil ya creado
+./.venv/Scripts/python.exe run_phase1.py --domain plaque_psoriasis --max 0   # --max 0 = SIN TOPE (todo lo que haya)
 ./.venv/Scripts/python.exe suggest_drugs.py --disease "Crohn disease" --top 10 --phase3   # ¿qué fármacos se estudian? (CT.gov)
 ./.venv/Scripts/python.exe ingest_desktop_set.py --file "<export.txt>" --domain <slug>     # vía manual: export 'Abstract (text)' de PubMed
 ```
@@ -160,7 +161,9 @@ bronze  →  silver  →  chroma
 | `src/verdict.py`     | Eval | **Veredicto en vivo por pregunta**: qué embedding entendió mejor ESTA consulta (hit@1, on-target, AUC de la pregunta, triplete en vivo). Sin objetivo verificado → **no declara ganador**. |
 | `src/report.py`      | 1.0 | **Informe de evidencia exportable**: HTML autónomo (CSS embebido, sin red), imprimible a PDF. Separa fuentes citadas de solo recuperadas. |
 | `src/status.py`      | 1.0 | `system_status()`: comprueba Ollama, presencia de los modelos y nº de chunks del corpus. **Nunca lanza**; devuelve flags + detalle. |
-| `app/streamlit_app.py` | 5 | Chat con citas resaltadas, tarjetas de fuente, KPIs, gráfico de outcomes, panel del Scout, panel de estado y botón de descarga del informe. CSS propio inline (sin llamadas a red). |
+| `app/streamlit_app.py` | 5 | App con **tres pestañas** (MIA / Build corpus / About). En MIA: chat a la izquierda y **ajustes a la derecha** (Scout, perfil, modelos, estado); citas resaltadas, tarjetas de fuente, gráfico de outcomes, **lectura relacionada** (`related`) e informe descargable. CSS propio inline. |
+| `app/corpus_tab.py` | 5 | Pestaña **Build corpus**: formulario (enfermedad, *Suggest drugs* vía CT.gov, fármacos, mecanismos, endpoints, cobertura con opción *sin tope* y aviso) que lanza `build_corpus.py` como **subproceso** y muestra su salida en vivo. Tabla de perfiles guardados. Tablas en Markdown (pyarrow bloqueado en Windows). |
+| `app/about_tab.py` | 5 | Pestaña **About**: qué es, cómo funciona, medido, límites, aviso experimental y botones de *feedback* que abren una Issue de GitHub prellenada (`config.REPO_URL`). |
 | `app/pages/1_Comparativa_MIA_vs_Centivence.py` | 5 | Página lado a lado: qué recupera MedCPT (MIA) vs OpenAI (Centivence), con **banner de veredicto** por pregunta y expander del benchmark agregado. |
 
 ### 3.4 Scripts raíz (fuera de `src/`, orquestan o mantienen)
@@ -271,6 +274,16 @@ Para depurar el pipeline completo, `src/rag.py` y `src/scout.py` imprimen respue
   `compare._COLLECTIONS`, el `st.cache_data` del estado. Los módulos que derivan algo del
   dominio (`outcomes`, `processing`, `triplet_agent`) lo recalculan solos comparando
   `config.DOMAIN_SLUG`.
+- **La enfermedad como texto libre en PubMed trae homónimos.** Medido el 4-sep-2026:
+  `abemaciclib AND Retinoblastoma` devolvía cáncer de mama "Rb-positivo" (la PROTEÍNA).
+  `ingestion.pubmed_disease_clause` acota a `"X"[MeSH Terms] OR "X"[Title]` con fallback
+  a texto libre; CT.gov se acota con `query.cond`. Cualquier búsqueda nueva debe pasar por ahí.
+- **Las preguntas de SÍ/NO disparan el modo veredicto.** "Is X effective…?" → una frase sin
+  cita, 4 reintentos iguales. `rag.open_phrasing` antepone "Summarize the evidence relevant
+  to this question…" SOLO al prompt del redactor; recuperación, intención y UI usan la
+  pregunta original. Medido: de 1 frase a 4 con citas.
+- **`st.dataframe`/`st.table` no funcionan en este equipo**: necesitan pyarrow y el Control de
+  Aplicaciones de Windows bloquea su DLL. Tablas en Markdown (`corpus_tab._md_table`).
 - **Acceso "paper de pago"**: PubMed da el abstract gratis, pero el texto completo puede ser de pago.
   Señal fiable y gratuita: si hay id de **PMC** → `access="open"`; si solo DOI → `access="abstract_only"`
   y MIA lo avisa. **No se hace scraping del PDF**: solo se señala que existe.

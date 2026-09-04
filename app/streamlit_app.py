@@ -27,11 +27,12 @@ import streamlit as st
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 import config
 from src import rag, scout, citations, report, status
+import corpus_tab, about_tab   # pestañas (viven en app/)
 
 st.set_page_config(
     page_title="MIA · Medical Intelligence Agent",
     page_icon=":material/biotech:",
-    layout="centered",
+    layout="wide",
 )
 
 
@@ -84,7 +85,7 @@ st.markdown(
       }
 
       html, body, [class*="css"], .stMarkdown, .block-container { font-family: var(--mia-font); }
-      .block-container { padding-top: 2.2rem; max-width: 860px; }
+      .block-container { padding-top: 2.2rem; max-width: 1280px; }
       .stApp { background: var(--mia-bg); }
 
       /* ====================================================================
@@ -536,10 +537,31 @@ if not _status["ready"]:
 
 
 # ==========================================================================
-# 2) Barra lateral: información y ajustes
+# 2) Ajustes (columna derecha de la pestaña MIA)
 # ==========================================================================
-with st.sidebar:
-    st.header(":material/settings: Settings")
+# Antes vivían en la barra lateral. Ahora la app tiene pestañas (MIA / Build
+# corpus / About) y los ajustes van a la DERECHA del chat, a la vista, como pedía
+# el autor: el interruptor del Scout y el selector de patología son parte del
+# uso normal, no un menú escondido.
+
+def _on_domain_change(slug):
+    """Cambio de perfil EN CALIENTE: config recalcula sus valores y se vacían las
+    cachés que dependían del dominio (colección abierta en rag, colecciones de la
+    comparativa, estado del sistema). Se persiste en domains/active.txt."""
+    config.activate_domain(slug, persist=True)
+    rag._COLLECTION = None                 # la colección abierta era del otro dominio
+    try:
+        from src import compare
+        compare._COLLECTIONS.clear()
+    except Exception:  # noqa: BLE001
+        pass
+    _cached_status.clear()
+    st.session_state.messages = []         # la conversación era sobre otra patología
+
+
+def _render_settings():
+    """Pinta los ajustes y devuelve si el Scout está activado."""
+    st.markdown("#### :material/settings: Settings")
     usar_scout = st.toggle(
         "Scout agent",
         value=True,
@@ -547,7 +569,7 @@ with st.sidebar:
              "ClinicalTrials, imports the results and retries.",
     )
     st.divider()
-    st.subheader(":material/smart_toy: Models (local)")
+    st.markdown("**:material/smart_toy: Models (local)**")
     st.caption(f":material/neurology: Biomedical: `{config.LLM_MODEL}`")
     # Mostramos el embedding REALMENTE activo (según EMBEDDING_BACKEND), no una
     # constante fija: si estamos en MedCPT, decir 'bge' sería engañoso.
@@ -564,7 +586,7 @@ with st.sidebar:
     # vacían las cachés que dependían del dominio (colección abierta en rag,
     # colecciones de la comparativa, estado del sistema). Se persiste en
     # domains/active.txt para que la próxima ejecución arranque en el mismo.
-    st.subheader(":material/coronavirus: Disease profile")
+    st.markdown("**:material/coronavirus: Disease profile**")
     _domains = config.list_domains()
     _labels = {}
     for _slug in _domains:
@@ -577,25 +599,17 @@ with st.sidebar:
         index=_domains.index(config.DOMAIN_SLUG) if config.DOMAIN_SLUG in _domains else 0,
         format_func=lambda s: f"{_labels.get(s, s)}  ({s})",
         help="Each profile has its own disease, drugs, endpoints and indexed corpus. "
-             "Create a new one with:  python build_corpus.py --disease \"…\" --drug …",
+             "Profiles are saved on this computer. Create a new one in the Build corpus tab.",
     )
     if _sel != config.DOMAIN_SLUG:
-        config.activate_domain(_sel, persist=True)
-        rag._COLLECTION = None                 # la colección abierta era del otro dominio
-        try:
-            from src import compare
-            compare._COLLECTIONS.clear()
-        except Exception:  # noqa: BLE001
-            pass
-        _cached_status.clear()
-        st.session_state.messages = []         # la conversación era sobre otra patología
+        _on_domain_change(_sel)
         st.rerun()
     st.caption(f"{len(config.DRUGS)} drugs · corpus `{config.CHROMA_COLLECTION}`")
     st.caption(f":material/tune: Evidence threshold: {config.SIMILARITY_THRESHOLD}")
 
     # --- Estado del sistema: semáforos reales (Ollama / modelo / corpus) ---
     st.divider()
-    st.subheader(":material/monitor_heart: System status")
+    st.markdown("**:material/monitor_heart: System status**")
     _s = _cached_status()
     _ollama_ok = _s["ollama"]["up"]
     _modelo_ok = all(_s["models"].values())
@@ -620,6 +634,7 @@ with st.sidebar:
                      width="stretch"):
             st.session_state.messages = []
             st.rerun()
+    return usar_scout
 
 
 # ==========================================================================
@@ -938,7 +953,8 @@ EJEMPLOS_POR_INTENCION = [
     for t, i, qs in (tuple(e) for e in config.EXAMPLE_QUESTIONS if len(e) == 3)
 ]
 
-if not st.session_state.messages:
+def _render_welcome():
+    """Estado vacío: bienvenida + botones de ejemplo del perfil activo."""
     st.markdown(
         f"""
         <div class="mia-welcome">
@@ -1058,7 +1074,36 @@ def _render_assistant(data):
         )
 
     _render_retrieval_details(data, citadas, otras)
+    _render_related(data.get("related"))
     _render_export_button(data, texto, citadas)
+
+
+def _render_related(related):
+    """Bibliografía RELACIONADA (no citada): más papers afines a la pregunta, con
+    enlace. Es un servicio al lector ("puede que también te interese"), separado de
+    las fuentes para no sugerir que la respuesta se apoya en ellos."""
+    if not related:
+        return
+    n = len(related)
+    with st.expander(f"Related reading · {n} more paper{'s' if n != 1 else ''} on this question",
+                     icon=":material/menu_book:", expanded=False):
+        st.caption("Retrieved above the evidence threshold but not used in the answer. "
+                   "Worth a look if you want to go deeper.")
+        for r in related:
+            title = html.escape(r.get("title") or "(untitled)")
+            id_lbl = html.escape(_id_label(r.get("source"), r.get("doc_id")))
+            src_lbl = html.escape(_source_type_label(r.get("source")))
+            url = html.escape(r.get("url") or "#")
+            snip = html.escape(r.get("snippet") or "")
+            snippet_html = f'<div class="src-snippet">{snip}</div>' if snip else ""
+            acc = " · abstract only" if r.get("access") == "abstract_only" else ""
+            st.markdown(
+                f'<div class="src-card" style="border-left-color: var(--mia-cyan)">'
+                f'<div class="src-head"><span class="src-type">{src_lbl}</span></div>'
+                f'<div class="src-title">{title}</div>{snippet_html}'
+                f'<div class="src-meta">{id_lbl}{acc}</div>'
+                f'<a class="src-link" href="{url}" target="_blank">Open source ↗</a></div>',
+                unsafe_allow_html=True)
 
 
 def _render_retrieval_details(data, citadas, otras):
@@ -1102,23 +1147,25 @@ def _render_export_button(data, texto, citadas):
     )
 
 
-# Re-pintamos todo el historial en cada recarga (así es Streamlit).
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        if msg["role"] == "assistant":
-            _render_assistant(msg)
-        else:
-            st.markdown(msg["content"])
+def _render_chat(usar_scout):
+    """Pestaña MIA, columna izquierda: historial + entrada del usuario."""
+    if not st.session_state.messages:
+        _render_welcome()
 
+    # Re-pintamos todo el historial en cada recarga (así es Streamlit).
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            if msg["role"] == "assistant":
+                _render_assistant(msg)
+            else:
+                st.markdown(msg["content"])
 
-# ==========================================================================
-# 5) Entrada del usuario
-# ==========================================================================
-# La pregunta puede venir del cuadro de chat o de un botón de ejemplo.
-pending = st.session_state.pop("pending_q", None)
-pregunta = st.chat_input("Ask a question about the evidence (in English)…") or pending
+    # La pregunta puede venir del cuadro de chat o de un botón de ejemplo.
+    pending = st.session_state.pop("pending_q", None)
+    pregunta = st.chat_input("Ask a question about the evidence (in English)…") or pending
+    if not pregunta:
+        return
 
-if pregunta:
     # Conversación dinámica: el historial son los turnos ANTERIORES a esta
     # pregunta (todo lo que ya hay en messages). Se lo pasamos al pipeline para
     # que resuelva follow-ups ("and its safety?") a una pregunta autónoma.
@@ -1159,5 +1206,37 @@ if pregunta:
             "has_evidence": resultado.get("has_evidence"),
             "used_scout": resultado.get("used_scout"),
             "scout": resultado.get("scout"),
+            "related": resultado.get("related"),
             "condensed_question": resultado.get("condensed_question"),
         })
+
+
+# ==========================================================================
+# 5) Ensamblado: pestañas MIA · Build corpus · About
+# ==========================================================================
+def _after_build(slug):
+    """Tras construir un corpus desde la app: refrescar cachés y, si procede,
+    activar el perfil nuevo para preguntar de inmediato."""
+    _cached_status.clear()
+    if slug:
+        _on_domain_change(slug)   # el aviso ("flash") lo escribe corpus_tab
+
+
+tab_mia, tab_corpus, tab_about = st.tabs([
+    ":material/chat: MIA", ":material/construction: Build corpus", ":material/info: About"])
+
+with tab_mia:
+    flash = st.session_state.pop("flash", None)
+    if flash:
+        st.success(flash, icon=":material/check_circle:")
+    col_chat, col_settings = st.columns([3, 1.1], gap="large")
+    with col_settings:
+        usar_scout = _render_settings()
+    with col_chat:
+        _render_chat(usar_scout)
+
+with tab_corpus:
+    corpus_tab.render(on_built=_after_build)
+
+with tab_about:
+    about_tab.render()

@@ -204,6 +204,9 @@ la app en el navegador.
 
 ## 🧬 Usar MIA con OTRA enfermedad (perfiles de dominio)
 
+> **Desde la app:** pestaña **Build corpus** (enfermedad → *Suggest drugs* → cobertura → *Build*).
+> Los perfiles creados quedan guardados en `domains/` y se cambian en la pestaña MIA.
+>
 > **Guía paso a paso para usuarios:** [`docs/GUIA_NUEVA_ENFERMEDAD.md`](docs/GUIA_NUEVA_ENFERMEDAD.md)
 > — cómo elegir la enfermedad, sus 5 fármacos principales (`suggest_drugs.py` los propone
 > con datos de ClinicalTrials.gov), mecanismos y endpoints; la descarga automática y la

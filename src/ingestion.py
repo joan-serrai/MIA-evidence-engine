@@ -97,6 +97,66 @@ def _get_text(url, params):
     return resp.text
 
 
+# PubMed acepta como mucho unos cientos de PMID por petición GET (el límite real es
+# la longitud de la URL). Para "sin tope" (miles de abstracts) descargamos por
+# LOTES y fusionamos los <PubmedArticle> en un único <PubmedArticleSet>, que es
+# lo que processing.py espera leer de cada archivo bronze.
+_EFETCH_BATCH = 200
+_PMID_RETMAX_NOCAP = 10000   # tope de esearch sin usar el historial de NCBI
+
+
+def _efetch_pubmed_xml(idlist, api_key=None):
+    """Descarga los abstracts de `idlist` en lotes y devuelve UN XML válido."""
+    cuerpos = []
+    for i in range(0, len(idlist), _EFETCH_BATCH):
+        lote = idlist[i:i + _EFETCH_BATCH]
+        params = {"db": "pubmed", "id": ",".join(lote), "rettype": "abstract", "retmode": "xml"}
+        if api_key:
+            params["api_key"] = api_key
+        xml_text = _get_text(f"{config.PUBMED_EUTILS}/efetch.fcgi", params)
+        time.sleep(0.34)
+        ini, fin = xml_text.find("<PubmedArticleSet>"), xml_text.rfind("</PubmedArticleSet>")
+        cuerpos.append(xml_text[ini + len("<PubmedArticleSet>"):fin] if ini >= 0 and fin > ini else "")
+        if len(idlist) > _EFETCH_BATCH:
+            print(f"      PubMed: {min(i + _EFETCH_BATCH, len(idlist))}/{len(idlist)} abstracts")
+    return "<PubmedArticleSet>" + "".join(cuerpos) + "</PubmedArticleSet>"
+
+
+def pubmed_disease_clause(disease_query):
+    """Acota la ENFERMEDAD en PubMed a su descriptor MeSH o al título.
+
+    Por qué: buscar la enfermedad como texto libre trae homónimos. Medido el
+    4-sep-2026 con 'abemaciclib AND Retinoblastoma': PubMed devolvía ensayos de
+    cáncer de mama "Rb-positivo" (la PROTEÍNA del retinoblastoma, no la enfermedad),
+    y la respuesta acabó hablando de mama. Con `[MeSH Terms]` PubMed usa su
+    indexación por tema (que distingue 'Retinoblastoma' de 'Retinoblastoma Protein');
+    `[Title]` recupera lo muy reciente que aún no tiene MeSH asignado.
+    Acepta 'X' o '(X OR Y)' (config.DISEASE_QUERY) y devuelve
+    '(X[MeSH Terms] OR X[Title] OR Y[MeSH Terms] OR Y[Title])'.
+    """
+    terminos = [t.strip() for t in re.split(r"\s+OR\s+", disease_query.strip("() "))
+                if t.strip()]
+    partes = []
+    for t in terminos:
+        partes += [f'"{t}"[MeSH Terms]', f'"{t}"[Title]']
+    return "(" + " OR ".join(partes) + ")"
+
+
+def _esearch_ids(term, retmax, api_key=None):
+    """esearch → lista de PMID (respetando el rate-limit)."""
+    params = {"db": "pubmed", "term": term, "retmax": retmax, "retmode": "json"}
+    if api_key:
+        params["api_key"] = api_key
+    data = _get_json(f"{config.PUBMED_EUTILS}/esearch.fcgi", params)
+    time.sleep(0.34)
+    return data.get("esearchresult", {}).get("idlist", [])
+
+
+def _retmax(max_results):
+    """retmax para esearch: el tope pedido, o el máximo práctico si es 'sin tope' (None)."""
+    return _PMID_RETMAX_NOCAP if max_results is None else max_results
+
+
 def _ensure_bronze_dir():
     """Crea data/bronze/ si no existe (no falla si ya está)."""
     config.BRONZE_DIR.mkdir(parents=True, exist_ok=True)
@@ -122,11 +182,12 @@ def fetch_clinical_trials(disease, drug, max_results=50):
 
     estudios = []
     page_token = None
-    # Pedimos como mucho 'max_results'. pageSize no debería superar ese límite
+    # Pedimos como mucho 'max_results' (None = SIN TOPE: todo lo que haya, paginando
+    # de 1.000 en 1.000, que es el máximo de la API). pageSize no supera el tope
     # para no descargar de más en la última página.
-    page_size = min(max_results, 100)
+    page_size = 1000 if max_results is None else min(max_results, 1000)
 
-    while len(estudios) < max_results:
+    while max_results is None or len(estudios) < max_results:
         params = {
             "query.cond": disease,
             "query.intr": drug,
@@ -148,7 +209,8 @@ def fetch_clinical_trials(disease, drug, max_results=50):
             break  # era la última página
 
     # Recortamos por si la última página nos pasó del máximo.
-    estudios = estudios[:max_results]
+    if max_results is not None:
+        estudios = estudios[:max_results]
 
     # Envolvemos los datos crudos con un poco de "procedencia" (de dónde y para
     # qué se descargaron). Esto ayuda a depurar después.
@@ -182,20 +244,12 @@ def fetch_pubmed(disease, drug, max_results=50):
     api_key = _load_api_key()
 
     # --- Paso 1: esearch (¿qué artículos existen?) ---
-    esearch_params = {
-        "db": "pubmed",
-        "term": f"{drug} AND {disease}",
-        "retmax": max_results,
-        "retmode": "json",
-    }
-    if api_key:
-        esearch_params["api_key"] = api_key
-
-    esearch_data = _get_json(f"{config.PUBMED_EUTILS}/esearch.fcgi", esearch_params)
-    idlist = esearch_data.get("esearchresult", {}).get("idlist", [])
-
-    # Respetamos el límite de peticiones de NCBI (3/seg sin clave).
-    time.sleep(0.34)
+    # Enfermedad acotada por MeSH/título (evita homónimos); si con eso no hay
+    # nada (nombre sin descriptor MeSH), se repite como texto libre.
+    idlist = _esearch_ids(f"{drug} AND {pubmed_disease_clause(disease)}",
+                          _retmax(max_results), api_key)
+    if not idlist:
+        idlist = _esearch_ids(f"{drug} AND {disease}", _retmax(max_results), api_key)
 
     if not idlist:
         # Aun sin resultados guardamos un XML vacío válido, para que processing
@@ -204,18 +258,8 @@ def fetch_pubmed(disease, drug, max_results=50):
         destino.write_text("<PubmedArticleSet></PubmedArticleSet>", encoding="utf-8")
         return []
 
-    # --- Paso 2: efetch (dame el contenido de esos PMIDs) ---
-    efetch_params = {
-        "db": "pubmed",
-        "id": ",".join(idlist),
-        "rettype": "abstract",
-        "retmode": "xml",
-    }
-    if api_key:
-        efetch_params["api_key"] = api_key
-
-    xml_text = _get_text(f"{config.PUBMED_EUTILS}/efetch.fcgi", efetch_params)
-    time.sleep(0.34)
+    # --- Paso 2: efetch (dame el contenido de esos PMIDs), por lotes ---
+    xml_text = _efetch_pubmed_xml(idlist, api_key)
 
     destino = config.BRONZE_DIR / f"pubmed_{drug}.xml"
     destino.write_text(xml_text, encoding="utf-8")
@@ -236,8 +280,12 @@ def _slugify(texto):
     return slug[:40] or "scout"
 
 
-def search_clinical_trials(term, max_results=20):
+def search_clinical_trials(term, max_results=20, cond=None):
     """Busca ensayos en ClinicalTrials.gov por TEXTO LIBRE (query.term).
+
+    `cond` (opcional): acota además por CONDICIÓN (query.cond), el campo
+    estructurado de enfermedad del registro. Lo usa el Scout para que un fármaco
+    buscado por texto libre no traiga ensayos de otra patología.
 
     Guarda en data/bronze/ct_scout_<slug>.json y devuelve la ruta del archivo
     (o None si no hubo resultados).
@@ -245,10 +293,12 @@ def search_clinical_trials(term, max_results=20):
     _ensure_bronze_dir()
     estudios = []
     page_token = None
-    page_size = min(max_results, 100)
+    page_size = 1000 if max_results is None else min(max_results, 1000)
 
-    while len(estudios) < max_results:
+    while max_results is None or len(estudios) < max_results:
         params = {"query.term": term, "pageSize": page_size, "format": "json"}
+        if cond:
+            params["query.cond"] = cond
         if page_token:
             params["pageToken"] = page_token
         data = _get_json(config.CLINICALTRIALS_API, params)
@@ -260,7 +310,8 @@ def search_clinical_trials(term, max_results=20):
         if not page_token:
             break
 
-    estudios = estudios[:max_results]
+    if max_results is not None:
+        estudios = estudios[:max_results]
     if not estudios:
         return None
 
@@ -271,8 +322,11 @@ def search_clinical_trials(term, max_results=20):
     return destino
 
 
-def search_pubmed(term, max_results=20):
+def search_pubmed(term, max_results=20, fallback_term=None):
     """Busca abstracts en PubMed por TEXTO LIBRE.
+
+    `fallback_term` (opcional): segunda búsqueda si la primera no devuelve nada
+    (p. ej. la versión sin acotar por MeSH).
 
     Guarda en data/bronze/pubmed_scout_<slug>.xml y devuelve la ruta del archivo
     (o None si no hubo resultados).
@@ -280,22 +334,13 @@ def search_pubmed(term, max_results=20):
     _ensure_bronze_dir()
     api_key = _load_api_key()
 
-    esearch_params = {"db": "pubmed", "term": term, "retmax": max_results,
-                      "retmode": "json"}
-    if api_key:
-        esearch_params["api_key"] = api_key
-    esearch_data = _get_json(f"{config.PUBMED_EUTILS}/esearch.fcgi", esearch_params)
-    idlist = esearch_data.get("esearchresult", {}).get("idlist", [])
-    time.sleep(0.34)
+    idlist = _esearch_ids(term, _retmax(max_results), api_key)
+    if not idlist and fallback_term:
+        idlist = _esearch_ids(fallback_term, _retmax(max_results), api_key)
     if not idlist:
         return None
 
-    efetch_params = {"db": "pubmed", "id": ",".join(idlist), "rettype": "abstract",
-                     "retmode": "xml"}
-    if api_key:
-        efetch_params["api_key"] = api_key
-    xml_text = _get_text(f"{config.PUBMED_EUTILS}/efetch.fcgi", efetch_params)
-    time.sleep(0.34)
+    xml_text = _efetch_pubmed_xml(idlist, api_key)
 
     destino = config.BRONZE_DIR / f"pubmed_scout_{_slugify(term)}.xml"
     destino.write_text(xml_text, encoding="utf-8")
@@ -308,6 +353,7 @@ def search_pubmed(term, max_results=20):
 
 def run(max_results=50):
     """Descarga ambas fuentes para todos los fármacos de config.DRUGS del perfil
+    (`max_results=None` = sin tope: todo lo que devuelvan las APIs)
     de dominio activo, y después las búsquedas libres extra del perfil
     (config.EXTRA_QUERIES: p. ej. un mecanismo — "IL-17 inhibitor" — para traer
     evidencia que no nombra ningún fármaco concreto)."""
@@ -329,8 +375,9 @@ def run(max_results=50):
     for extra in config.EXTRA_QUERIES:
         term = f"{extra} AND {config.DISEASE_QUERY}"
         try:
-            p_ct = search_clinical_trials(term, max_results)
-            p_pm = search_pubmed(term, max_results)
+            p_ct = search_clinical_trials(extra, max_results, cond=config.DISEASE_QUERY)
+            p_pm = search_pubmed(f"{extra} AND {pubmed_disease_clause(config.DISEASE_QUERY)}",
+                                 max_results, fallback_term=term)
             print(f"   [extra] '{extra}': CT {'sí' if p_ct else 'no'} · PubMed {'sí' if p_pm else 'no'}")
         except Exception as e:
             print(f"   [error] búsqueda extra '{extra}': {e}")

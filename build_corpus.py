@@ -157,7 +157,7 @@ def main():
                         help="evento adverso propio del dominio a extraer, p. ej. 'candidiasis' (repetible)")
     parser.add_argument("--query", action="append",
                         help="búsqueda libre extra (p. ej. un mecanismo) además de fármaco+enfermedad (repetible)")
-    parser.add_argument("--max", type=int, default=50, help="máx. resultados por fármaco y fuente (def: 50)")
+    parser.add_argument("--max", type=int, default=50, help="máx. resultados por fármaco y fuente (def: 50; 0 = SIN TOPE, todo lo que haya)")
     parser.add_argument("--activate", action="store_true", help="dejar este perfil como activo (domains/active.txt)")
     parser.add_argument("--profile-only", action="store_true", help="solo escribir el perfil, sin descargar ni indexar")
     parser.add_argument("--skip-download", action="store_true", help="no descargar: indexar lo que ya haya en bronze")
@@ -165,6 +165,8 @@ def main():
                         help="construir también la colección OpenAI (comparativa; necesita OPENAI_API_KEY)")
     parser.add_argument("--force-default", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.max == 0:
+        args.max = None   # sin tope
 
     perfil = build_profile(args)
     slug = perfil["slug"]
@@ -187,7 +189,7 @@ def main():
 
     if args.profile_only:
         print("\n--profile-only: no se descarga ni se indexa. Para hacerlo más tarde:")
-        print(f"  ./.venv/Scripts/python.exe run_phase1.py --domain {slug} --max {args.max}")
+        print(f"  ./.venv/Scripts/python.exe run_phase1.py --domain {slug} --max {args.max or 0}")
         return
 
     from src import ingestion, processing   # import tardío: cargan torch/transformers

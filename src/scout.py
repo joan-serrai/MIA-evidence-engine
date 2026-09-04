@@ -135,12 +135,17 @@ def run_scout(question, max_results=20):
     Devuelve un resumen: {term, ct_file, pubmed_file, new_chunks}.
     """
     term = _extract_search_term(question)
-    # Acotamos siempre a la enfermedad del proyecto para no traer ruido.
-    search = f"{term} AND {config.DISEASE_QUERY}"
-    print(f"   [scout] término de búsqueda: '{search}'")
+    # Acotamos siempre a la enfermedad del perfil para no traer ruido. En
+    # ClinicalTrials.gov por el campo CONDICIÓN; en PubMed por MeSH/título (ver
+    # ingestion.pubmed_disease_clause: sin esto, 'retinoblastoma' traía papers de
+    # la PROTEÍNA Rb en cáncer de mama). Si la versión acotada no da nada, se
+    # repite como texto libre.
+    libre = f"{term} AND {config.DISEASE_QUERY}"
+    acotada = f"{term} AND {ingestion.pubmed_disease_clause(config.DISEASE_QUERY)}"
+    print(f"   [scout] término de búsqueda: '{acotada}'")
 
-    ct_path = ingestion.search_clinical_trials(search, max_results)
-    pm_path = ingestion.search_pubmed(search, max_results)
+    ct_path = ingestion.search_clinical_trials(term, max_results, cond=config.DISEASE_QUERY)
+    pm_path = ingestion.search_pubmed(acotada, max_results, fallback_term=libre)
 
     nuevos = processing.index_new_bronze([ct_path, pm_path], term)
     print(f"   [scout] chunks nuevos indexados: {nuevos}")

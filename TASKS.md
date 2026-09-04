@@ -22,6 +22,22 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **El modelo usa las citas como sujeto de la frase.** Visto el 4-sep-2026 en
+  retinoblastoma: escribió *"Doc 1 and Doc 2 both report…"* y, al quitar las etiquetas
+  para recolocarlas, quedó *"Specifically, and both report…"*. `citations.py` debería
+  detectar `[Doc N]` seguido de "and/both/reports" y sustituirlo por "one study" /
+  "two studies" en vez de borrarlo.
+- **Homónimos en PubMed vía `[Title]`.** La cláusula MeSH/título quita casi todo el
+  ruido, pero un paper titulado "Retinoblastoma-Positive Breast Cancer" sigue
+  entrando (4-sep-2026). Opciones: excluir con `NOT "<disease> protein"[MeSH]` cuando
+  el perfil lo declare, o un filtro posterior que exija la enfermedad en las
+  condiciones/MeSH del registro.
+- **`suggest_drugs` desde la app no filtra soporte.** Filgrastim/mesna salen arriba;
+  una lista de exclusión de fármacos de soporte (G-CSF, antieméticos, uroprotectores)
+  ahorraría el paso de criterio al usuario.
+- **Rama pública `main` sin Centivence.** Decidido el 4-sep-2026: `master` conserva
+  todo; `main` se crea sin la página de comparación, sin backend OpenAI ni
+  evaluaciones, con README de producto. Pendiente de crear al publicar.
 - **Citas frase a frase con corpus pequeños.** Medido el 4-sep-2026 con un perfil de
   prueba (Crohn, 26 documentos): la respuesta salió sin ninguna `[Doc N]` porque las 5
   fuentes hablaban todas del mismo fármaco y el reparto IDF no halló términos

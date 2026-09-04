@@ -310,6 +310,34 @@ _TASK_FOCUS = {
 }
 
 
+# Preguntas de SÍ/NO ("Is X effective…?", "Does X cause…?"). Medido el 4-sep-2026
+# con el Scout en retinoblastoma: a "Is abemaciclib effective for retinoblastoma?"
+# el 8B contestó "Abemaciclib is not effective for retinoblastoma." — UNA frase,
+# sin cita, en modo veredicto de examen, y los cuatro reintentos devolvieron lo
+# mismo. Con la MISMA evidencia, "What is the evidence for abemaciclib in
+# retinoblastoma?" produjo tres frases citadas. Es el mismo tic USMLE que ya
+# tratábamos con `_EXAM_RE`, pero disparado por la forma de la pregunta. Arreglo
+# determinista: la pregunta que ve el REDACTOR se reformula como pregunta abierta;
+# la recuperación, el router de intención y la interfaz siguen usando la original.
+_YESNO_RE = re.compile(
+    r"^\s*(is|are|was|were|does|do|did|can|could|should|has|have|will|would)\b",
+    re.IGNORECASE)
+
+
+def open_phrasing(question):
+    """'Is X effective for Y?' → 'Summarize the evidence relevant to this question,
+    with the specific findings: Is X effective for Y?' (solo para el prompt de
+    redacción). Otras preguntas, intactas."""
+    q = (question or "").strip()
+    m = _YESNO_RE.match(q)
+    if not m:
+        return question
+    # Se conserva la pregunta tal cual (así el modelo sigue entendiendo qué se
+    # le pregunta) y se antepone un encargo abierto: resumir la evidencia con sus
+    # hallazgos concretos, en vez de emitir un veredicto.
+    return f"Summarize the evidence relevant to this question, with the specific findings: {q}"
+
+
 def _build_user_prompt(contexto, question, intent=None):
     """Contexto + consulta + directiva de formato + foco de la intención, en ese
     orden (lo más operativo, al final).
@@ -617,9 +645,12 @@ def retrieve(question, top_k=None):
     # Sobre-recuperamos (x4) para tener margen al agrupar por documento después:
     # varios chunks del top pueden ser del mismo artículo, así que pedimos de
     # sobra para que sigan quedando ~top_k DOCUMENTOS distintos tras deduplicar.
+    # Además de los top_k documentos que entran en el contexto, queremos unos
+    # cuantos MÁS para la "lectura relacionada" (bibliografía que no se citó pero
+    # es afín a la pregunta), así que pedimos margen para ambos.
     res = coleccion.query(
         query_embeddings=query_vec,
-        n_results=top_k * 4,
+        n_results=(top_k + config.RELATED_K) * 3,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -676,6 +707,36 @@ def _group_by_document(fragmentos, top_k=None):
         )
 
     return [por_doc[d] for d in orden[:top_k]]
+
+
+def _related_documents(fragmentos, top_k=None, n=None):
+    """Bibliografía RELACIONADA: los documentos que vinieron justo después de los
+    `top_k` que entraron en el contexto, siempre que superen el umbral de evidencia.
+
+    Por qué existe: cuando el Scout importa evidencia nueva —o simplemente cuando el
+    corpus es grande— la respuesta cita 5 papers, pero hay más que responden a la
+    misma pregunta. Se enseñan como "lectura relacionada", con su enlace, SIN
+    pretender que la respuesta se apoye en ellos (no se citan). Es un servicio al
+    lector, no una afirmación del sistema, y por eso se separa de las fuentes.
+    """
+    if top_k is None:
+        top_k = config.TOP_K
+    if n is None:
+        n = config.RELATED_K
+    grupos = _group_by_document(fragmentos, top_k=top_k + n)[top_k:]
+    salida = []
+    for g in grupos:
+        if g["similarity"] < config.SIMILARITY_THRESHOLD:
+            continue          # por debajo del umbral no lo llamamos "relacionado"
+        m = g["metadata"]
+        salida.append({
+            "source": m.get("source"), "doc_id": m.get("doc_id"),
+            "title": m.get("title"), "url": m.get("url"), "drugs": m.get("drugs"),
+            "access": m.get("access") or "open",
+            "similarity": round(g["similarity"], 3),
+            "snippet": _excerpt(g["chunks"][0][1], max_chars=200),
+        })
+    return salida
 
 
 # Parte del corpus (set ingerido en formato TEXTO de PubMed) arrastra al inicio
@@ -823,6 +884,8 @@ def answer(question, top_k=None, history=None):
       {
         "answer":  texto de la respuesta del modelo (citas válidas garantizadas),
         "sources": lista de fuentes citadas (para mostrarlas en la UI),
+        "related": bibliografía relacionada que NO entró en el contexto (hasta
+                   config.RELATED_K documentos por encima del umbral),
         "has_evidence": bool — si la mejor coincidencia supera el umbral,
         "intent": intención detectada de la pregunta (enfoque de la respuesta),
         "condensed_question": la pregunta autónoma que se usó si era un follow-up
@@ -855,6 +918,7 @@ def answer(question, top_k=None, history=None):
     has_evidence = mejor >= config.SIMILARITY_THRESHOLD
 
     contexto, fuentes = _build_context(fragmentos)
+    relacionados = _related_documents(fragmentos, top_k)
 
     # RAG ESTRICTO: si la evidencia local es débil, NO dejamos que el modelo
     # responda de memoria (evita alucinaciones tipo "the answer is Paris").
@@ -865,6 +929,7 @@ def answer(question, top_k=None, history=None):
                        "question. Enable the Scout agent to search PubMed and "
                        "ClinicalTrials.gov for it."),
             "sources": fuentes,
+            "related": [],
             "has_evidence": False,
             "intent": intent,
             "condensed_question": condensed,
@@ -872,7 +937,9 @@ def answer(question, top_k=None, history=None):
 
     # Generación robusta: prompt (núcleo + modificador de intención), guardián
     # anti-degeneración y reintentos (ver _generate_answer / _looks_degenerate).
-    salida = _generate_answer(contexto, pregunta, intent=intent)
+    # El redactor recibe la pregunta en forma ABIERTA (ver open_phrasing); la
+    # recuperación y la intención ya se hicieron con la original.
+    salida = _generate_answer(contexto, open_phrasing(pregunta), intent=intent)
     if salida is None:
         # Tras los reintentos seguía degenerando: mensaje claro, NO basura.
         salida = ("I could not produce a reliable answer from the retrieved "
@@ -895,6 +962,7 @@ def answer(question, top_k=None, history=None):
     return {
         "answer": salida,
         "sources": fuentes,
+        "related": relacionados,   # lectura relacionada (no citada), con enlaces
         "has_evidence": has_evidence,
         "intent": intent,
         "condensed_question": condensed,
@@ -923,3 +991,7 @@ if __name__ == "__main__":
         etiqueta_acc = "SOLO-RESUMEN (posible pago)" if acc == "abstract_only" else "abierto"
         print(f"  [Doc {f['n']}] {f['source']}:{f['doc_id']}  (sim {f['similarity']}, "
               f"{f['n_fragments']} frag, acceso: {etiqueta_acc})  {f['url']}")
+    if resultado.get("related"):
+        print(chr(10) + "--- LECTURA RELACIONADA (no citada) ---")
+        for r in resultado["related"]:
+            print(f"  · {r['source']}:{r['doc_id']}  (sim {r['similarity']})  {(r['title'] or '')[:90]}")

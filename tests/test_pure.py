@@ -237,3 +237,39 @@ def test_normalize_drops_placebo_and_comparators():
     from suggest_drugs import normalize
     for nombre in ("Placebo", "Matching placebo", "Vehicle cream", "Standard of care", ""):
         assert normalize(nombre) == "", nombre
+
+
+
+# --------------------------------------------------------------------------
+# rag.open_phrasing — las preguntas de sí/no se reformulan para el redactor
+# --------------------------------------------------------------------------
+
+def test_open_phrasing_rewrites_yes_no_questions():
+    from src.rag import open_phrasing
+    out = open_phrasing("Is abemaciclib effective for retinoblastoma?")
+    assert out.startswith("Summarize the evidence")
+    assert out.endswith("Is abemaciclib effective for retinoblastoma?")
+
+
+def test_open_phrasing_leaves_open_questions_alone():
+    from src.rag import open_phrasing
+    q = "What is the efficacy of dupilumab in atopic dermatitis?"
+    assert open_phrasing(q) == q
+    assert open_phrasing("") == ""
+
+
+
+# --------------------------------------------------------------------------
+# processing._drug_labels — etiquetas de fármaco limpias para Scout / búsquedas extra
+# --------------------------------------------------------------------------
+
+def test_drug_labels_keeps_known_drug_and_maps_search_terms():
+    import config
+    from src.processing import _drug_labels
+    known = config.ALL_DRUGS[0]
+    assert _drug_labels(known, "") == [known.lower()]
+    # término de búsqueda entero → fármacos que el texto menciona
+    texto = f"A trial of {config.ALL_DRUGS[0]} versus placebo."
+    assert _drug_labels("IL-17 inhibitor AND (X OR Y)", texto) == [known.lower()]
+    # ni fármaco conocido ni mención en el texto → slug del dominio
+    assert _drug_labels("IL-17 inhibitor AND (X OR Y)", "nothing here") == [config.DOMAIN_SLUG]
