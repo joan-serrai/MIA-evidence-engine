@@ -204,6 +204,11 @@ la app en el navegador.
 
 ## 🧬 Usar MIA con OTRA enfermedad (perfiles de dominio)
 
+> **Guía paso a paso para usuarios:** [`docs/GUIA_NUEVA_ENFERMEDAD.md`](docs/GUIA_NUEVA_ENFERMEDAD.md)
+> — cómo elegir la enfermedad, sus 5 fármacos principales (`suggest_drugs.py` los propone
+> con datos de ClinicalTrials.gov), mecanismos y endpoints; la descarga automática y la
+> vía manual con un export de PubMed; y dónde queda cada cosa.
+
 MIA se construyó y validó sobre la dermatitis atópica, pero **no está atada a ella**.
 Desde el 3-sep-2026 cada patología es un **perfil de dominio** en `domains/<slug>.json`
 (enfermedad, sinónimos, fármacos por clase, mecanismos, endpoints de eficacia, preguntas

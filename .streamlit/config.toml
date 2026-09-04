@@ -27,3 +27,8 @@ toolbarMode = "minimal"
 # sin autenticación: la atamos a localhost para que solo se pueda abrir desde
 # este equipo. Para compartirla en una red de confianza, cambiar aquí a propósito.
 address = "localhost"
+
+[browser]
+# Streamlit envía telemetría de uso a sus servidores por defecto. En un producto
+# que promete "ningún dato sale del ordenador", eso se apaga.
+gatherUsageStats = false

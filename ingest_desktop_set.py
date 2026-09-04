@@ -2,14 +2,17 @@
 ingest_desktop_set.py — Amplía la base vectorial con un export de PubMed.
 
 Toma un archivo en formato "Abstract (text)" de PubMed (el que se descarga con
-Save → Format: Abstract) y lo indexa en la MISMA colección ChromaDB del proyecto
-(`mia_evidence`), reutilizando la tubería de la Fase 1.
+Save → Format: Abstract (text)) y lo indexa en la colección ChromaDB del PERFIL
+DE DOMINIO activo (o del que indiques con --domain), reutilizando la tubería de
+la Fase 1. Es la vía MANUAL de ampliar el corpus: la automática es
+build_corpus.py / run_phase1.py, que descargan solos de PubMed y CT.gov.
 
 NO reentrena el modelo: solo amplía el corpus de RAG (la "biblioteca" que el LLM
 consulta). OpenBioLLM no cambia; solo tendrá más evidencia que citar.
 
 Uso:
     ./.venv/Scripts/python.exe ingest_desktop_set.py --file "<ruta al .txt>"
+    ./.venv/Scripts/python.exe ingest_desktop_set.py --file "<ruta>" --domain plaque_psoriasis
 
 Diseño:
     parsear .txt → filtrar ruido → documento uniforme → [tubería Fase 1]
@@ -192,11 +195,11 @@ def classify_noise(rec):
 # ==========================================================================
 
 def detect_drugs(rec):
-    """Fármacos de config.ALL_DRUGS mencionados en el registro. Si ninguno,
-    devuelve ['atopic_dermatitis']."""
+    """Fármacos de config.ALL_DRUGS (del perfil activo) mencionados en el registro.
+    Si ninguno, se etiqueta con el slug del dominio (p. ej. 'atopic_dermatitis')."""
     texto = f"{rec['title']} {rec['abstract']}".lower()
     encontrados = [d for d in config.ALL_DRUGS if d.lower() in texto]
-    return encontrados or ["atopic_dermatitis"]
+    return encontrados or [config.DOMAIN_SLUG]
 
 
 def to_uniform_document(rec):
@@ -310,5 +313,10 @@ if __name__ == "__main__":
         description="Indexa un export 'Abstract (text)' de PubMed en la colección ChromaDB del proyecto.")
     parser.add_argument("--file", required=True,
                         help="Ruta al archivo .txt exportado de PubMed.")
+    parser.add_argument("--domain", default=None,
+                        help="perfil de dominio (domains/<slug>.json); por defecto el activo")
     args = parser.parse_args()
+    if args.domain:
+        config.activate_domain(args.domain)
+    print(f"Dominio activo: {config.DOMAIN_SLUG} — {config.DISEASE} → colección {config.CHROMA_COLLECTION}")
     run(args.file)

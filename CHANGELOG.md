@@ -25,6 +25,60 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-04 · Guía para cualquier enfermedad, `suggest_drugs.py` y barrido de seguridad
+
+Objetivo de la sesión: que alguien que se descargue MIA de GitHub pueda cargar **su**
+enfermedad, sus fármacos y sus mecanismos sin leer código, y comprobar que el repositorio
+puede publicarse sin exponer nada.
+
+### Añadido — `docs/GUIA_NUEVA_ENFERMEDAD.md`
+Guía de usuario, en español, con las dos vías de carga: **automática** (`build_corpus.py`
+descarga de PubMed y ClinicalTrials.gov) y **manual** (export "Abstract (text)" de PubMed
+→ `ingest_desktop_set.py`). **Motivo:** el modelo mental natural —"dejo mis PDFs en la
+carpeta de la base de datos y pregunto"— no es cómo funciona MIA, y había que decirlo
+explícitamente: MIA no lee PDFs; su biblioteca son abstracts y fichas de ensayos que se
+descargan de las fuentes oficiales. La guía dice también dónde queda cada cosa
+(`domains/`, `data/bronze/<slug>`, `data/chroma`, censo CSV) y qué se sube a git.
+
+### Añadido — `suggest_drugs.py`: ¿qué fármacos se estudian para X?
+Consulta ClinicalTrials.gov, cuenta en cuántos ensayos aparece cada intervención
+farmacológica para la enfermedad y lista las más estudiadas con su fase máxima. Sin LLM,
+sin descargar nada. **Motivo:** el paso más difícil para un usuario ajeno al área no es el
+comando, es saber *qué 5 fármacos pedir*. Probado: psoriasis (1.028 ensayos → secukinumab,
+apremilast, etanercept, adalimumab, ustekinumab…) y Crohn (2.000 ensayos → adalimumab,
+infliximab, vedolizumab, ustekinumab, certolizumab pegol…). Las listas coinciden con la
+práctica clínica. La normalización de nombres tiene pruebas puras (`tests/test_pure.py`).
+
+### Cambiado — `ingest_desktop_set.py` entiende de perfiles
+Nuevo `--domain <slug>` (mismo patrón que `run_phase1.py`) y la etiqueta de fallback ya no
+es `atopic_dermatitis` a fuego sino el slug del dominio activo. **Probado** con un export
+real de 8 registros (bimekizumab AND psoriasis) contra el perfil de psoriasis: 5 con
+abstract, 19 chunks, 584 → 584 porque los 5 PMID ya estaban (entraron por la búsqueda
+extra "IL-17 inhibitor") — es decir, la idempotencia por PMID funciona también por esta vía.
+
+### Medido — `build_corpus.py` con una tercera enfermedad, de punta a punta
+`--disease "Crohn disease" --class anti_tnf=infliximab,adalimumab --class il23=risankizumab
+--max 5`: 15 ensayos + 15 abstracts → 26 documentos, 114 chunks, censo exportado, y una
+pregunta respondida con 5 fuentes por encima del umbral (3 de CT.gov, 2 de PubMed). El
+perfil de prueba se borró después: la guía usa psoriasis como ejemplo. **Observación
+incómoda:** la respuesta salió sin ninguna `[Doc N]` en el texto — el reparto determinista
+de citas no encontró ningún emparejamiento claro con 5 fuentes que hablan todas de
+risankizumab y con un corpus tan pequeño (sin términos distintivos). Con corpus pequeños
+el lector ve las fuentes pero no la cita frase a frase. Anotado en `TASKS.md`.
+
+### Seguridad — barrido previo a GitHub (resultado: limpio)
+- `.env` nunca ha estado en el historial; los 214 blobs del repo no contienen patrones de
+  clave (OpenAI `sk-`, AWS, GitHub, HuggingFace, claves privadas, `password=`…); el prefijo
+  de la clave real del `.env` local no aparece en ningún commit ni archivo rastreado.
+- Sin rutas con nombre de usuario, ni correos, en archivos rastreados (solo `C:\dev\MIA`).
+- **Corregido:** Streamlit enviaba telemetría de uso a sus servidores por defecto
+  (`Collecting usage statistics` en el arranque). En un producto que promete "ningún dato
+  sale del ordenador" eso se apaga: `browser.gatherUsageStats = false`.
+- **Documentado:** `HF_HUB_OFFLINE=1` (opcional, en `.env.example`) para que la carga de
+  MedCPT no consulte HuggingFace tras la primera descarga.
+- Pendiente de decisión del autor, no de código: el correo del autor en los commits será
+  público en GitHub (GitHub ofrece un correo `noreply` si se prefiere).
+
 ## 2026-09-03 · Auditoría externa: la demo fallaba, XSS, y MIA para cualquier enfermedad
 
 Bloque nacido de una **auditoría completa** (seguridad, calidad de software, pruebas

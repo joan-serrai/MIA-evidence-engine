@@ -22,6 +22,14 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **Citas frase a frase con corpus pequeños.** Medido el 4-sep-2026 con un perfil de
+  prueba (Crohn, 26 documentos): la respuesta salió sin ninguna `[Doc N]` porque las 5
+  fuentes hablaban todas del mismo fármaco y el reparto IDF no halló términos
+  distintivos. Opciones: bajar `_MIN_SCORE` cuando hay pocas fuentes, o citar la
+  fuente de mayor solapamiento aunque no gane por margen, marcándola como "probable".
+- **`suggest_drugs.py` no distingue fármacos de comparadores antiguos.** Metotrexato o
+  azatioprina salen arriba por volumen histórico de ensayos. Bastaría un `--since 2015`
+  (fecha de inicio del ensayo) para sesgar hacia lo actual.
 - **Que la respuesta CONTRASTE papers, no que resuma uno.** Objetivo: leer *"un
   ensayo pediátrico reporta A, mientras que un meta-análisis en adultos encuentra
   B; ambos coinciden en C"*. El prompt ya pide atribución por diseño y población

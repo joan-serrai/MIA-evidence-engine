@@ -79,6 +79,8 @@ Dos "marcas" recurrentes en el código y la UI:
 # OTRA ENFERMEDAD — crear un perfil de dominio y descargar/indexar su corpus (ver §10)
 ./.venv/Scripts/python.exe build_corpus.py --disease "Plaque psoriasis" --synonym psoriasis --class "il17_biologics=secukinumab,ixekizumab" --endpoint "PASI 75" --max 50 --activate
 ./.venv/Scripts/python.exe run_phase1.py --domain plaque_psoriasis   # reindexar un perfil ya creado
+./.venv/Scripts/python.exe suggest_drugs.py --disease "Crohn disease" --top 10 --phase3   # ¿qué fármacos se estudian? (CT.gov)
+./.venv/Scripts/python.exe ingest_desktop_set.py --file "<export.txt>" --domain <slug>     # vía manual: export 'Abstract (text)' de PubMed
 ```
 
 > Doble clic en **`run.bat`** (que llama a `run.ps1`) hace lo mismo comprobando antes el
@@ -164,6 +166,9 @@ bronze  →  silver  →  chroma
 ### 3.4 Scripts raíz (fuera de `src/`, orquestan o mantienen)
 - `build_corpus.py` — **crea un perfil de dominio nuevo** (otra patología) y descarga, indexa y
   censa su corpus de una vez. Es la puerta de entrada para usar MIA fuera de la dermatitis atópica.
+- `suggest_drugs.py` — propone los fármacos más estudiados para una enfermedad contando ensayos
+  en ClinicalTrials.gov (sin LLM ni descarga). Paso previo a `build_corpus.py`. Guía de usuario
+  en `docs/GUIA_NUEVA_ENFERMEDAD.md`.
 - `run_phase1.py` — orquesta ingesta→procesado→indexado (`--domain <slug>` para otro perfil).
 - `tests/test_pure.py` — pruebas pytest de las funciones puras (sin Ollama ni Chroma).
 - `check_setup.py` — diagnóstico de entorno (no instala nada).

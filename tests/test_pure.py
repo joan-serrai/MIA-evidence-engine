@@ -218,3 +218,22 @@ def test_comparator_arm_detection():
     assert processing._is_comparator_arm("Placebo") is True
     assert processing._is_comparator_arm("Matching Placebo up to Week 16") is True
     assert processing._is_comparator_arm("Dupilumab 300 mg + Oral Placebo") is False
+
+
+# --------------------------------------------------------------------------
+# suggest_drugs.normalize — agrupa variantes de una intervención de CT.gov
+# --------------------------------------------------------------------------
+# Es una función pura (sin red): el script consulta ClinicalTrials.gov, pero la
+# limpieza de nombres se prueba aquí con casos reales vistos en el registro.
+
+def test_normalize_strips_dose_route_and_brand():
+    from suggest_drugs import normalize
+    assert normalize("Secukinumab 300 mg SC (Cosentyx)") == "secukinumab"
+    assert normalize("Adalimumab 40mg injection") == "adalimumab"
+    assert normalize("Certolizumab Pegol") == "certolizumab pegol"
+
+
+def test_normalize_drops_placebo_and_comparators():
+    from suggest_drugs import normalize
+    for nombre in ("Placebo", "Matching placebo", "Vehicle cream", "Standard of care", ""):
+        assert normalize(nombre) == "", nombre
