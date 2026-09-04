@@ -180,6 +180,64 @@ minuto por cada 1.000 fragmentos sin GPU.
 **Y si algo falla a medias:** el indexado es idempotente (misma clave = mismo registro), así
 que se puede relanzar el comando sin duplicar nada. `--skip-download` evita volver a bajar.
 
+### 3.1 Ejemplo completo y real: retinoblastoma (4-sep-2026)
+
+Un caso fuera de dermatología, hecho de principio a fin tal como lo haría un usuario.
+
+**1. ¿Qué fármacos?** `suggest_drugs.py --disease "Retinoblastoma" --top 15` leyó 140
+ensayos y devolvió, por orden: carboplatin (22), etoposide (18), filgrastim (14),
+melphalan (13), cyclophosphamide (8), thiotepa (8), vincristine (7+6), topotecan (7)…
+
+**2. Criterio.** Aquí es donde el usuario aporta lo que el contador no sabe: *filgrastim*,
+*mesna* y *G-CSF* aparecen en muchos ensayos pero son **tratamiento de soporte** (protegen
+la médula o la vejiga durante la quimio), no fármacos contra el tumor. Se quitan. Y
+*vincristine* y *vincristine sulfate* son el mismo fármaco. Quedan cinco: carboplatino,
+etopósido y vincristina (la quimiorreducción sistémica clásica) y melfalán y topotecán (la
+quimioterapia intraarterial e intravítrea, que va directa al ojo).
+
+**3. Endpoint.** En retinoblastoma no hay una "tasa de respuesta con número" tipo PASI 75:
+lo que se mide es la **conservación del ojo** (*globe salvage* / *eye salvage*). Se pasa tal
+cual; MIA lo buscará en el texto aunque no lleve número.
+
+**4. El comando:**
+
+```powershell
+.\.venv\Scripts\python.exe build_corpus.py `
+    --disease "Retinoblastoma" `
+    --class "systemic_chemo=carboplatin,etoposide,vincristine" `
+    --class "local_chemo=melphalan,topotecan" `
+    --class-label "systemic_chemo=systemic chemoreduction" `
+    --class-label "local_chemo=intra-arterial / intravitreal chemotherapy" `
+    --mechanism "platinum=carboplatin" --mechanism "topoisomerase=etoposide,topotecan" `
+    --mechanism "alkylating=melphalan" --mechanism "vinca=vincristine" `
+    --endpoint "globe salvage" --endpoint "eye salvage" `
+    --query "intra-arterial chemotherapy" --query "intravitreal chemotherapy" `
+    --max 30
+```
+
+**5. Resultado:** 118 ensayos y 150 abstracts descargados → **195 documentos únicos, 598
+fragmentos** indexados en `mia_retinoblastoma_medcpt`, censo en
+`data/corpus_manifest_retinoblastoma.csv`. Unos minutos en CPU.
+
+**6. Una pregunta:** *"What is the efficacy of intra-arterial melphalan for retinoblastoma
+eye salvage?"* MIA respondió, entre otras cosas: *"long-term globe salvage was achieved in
+55% of retinoblastoma cases treated with intra-arterial melphalan [Doc 5] … outcomes were
+poorer with Group D/E tumors, vitreous seeds, prior intravenous chemotherapy failure, or
+requiring more than three intra-arterial melphalan cycles"*. Comprobado a mano: el 55% y
+esa lista de factores están, literalmente, en la conclusión del abstract citado como Doc 5
+(PMID 40563605, una serie real de 20 ojos con 60 meses de seguimiento). Las cinco fuentes
+recuperadas quedaron muy por encima del umbral de evidencia (72-74 frente a 66), así que el
+umbral calibrado en dermatitis también separó bien aquí.
+
+Lo que no salió perfecto, para que nadie se lleve a engaño: una frase sobre riesgos de
+complicaciones se atribuyó a un ensayo de CT.gov que solo dice que se evaluará la toxicidad.
+La cita apunta a una fuente real y relacionada, pero no a la que mejor la respalda. Es la
+limitación conocida del reparto determinista de citas cuando varias fuentes hablan de lo
+mismo (ver `TASKS.md`).
+
+El perfil resultante está en el repositorio como segundo ejemplo:
+`domains/retinoblastoma.json`.
+
 ---
 
 ## 4. Paso 3 · Comprobar que está y preguntar

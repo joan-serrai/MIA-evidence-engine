@@ -66,6 +66,17 @@ de citas no encontró ningún emparejamiento claro con 5 fuentes que hablan toda
 risankizumab y con un corpus tan pequeño (sin términos distintivos). Con corpus pequeños
 el lector ve las fuentes pero no la cita frase a frase. Anotado en `TASKS.md`.
 
+### Medido — ejemplo real fuera de dermatología: retinoblastoma
+A petición del autor, el flujo completo con una enfermedad oncológica pediátrica.
+`suggest_drugs.py` leyó 140 ensayos; se descartaron con criterio los fármacos de soporte
+(filgrastim, mesna, G-CSF) y quedaron carboplatino, etopósido, vincristina, melfalán y
+topotecán. `build_corpus.py --max 30` con dos búsquedas extra (intraarterial e
+intravítrea): **195 documentos, 598 chunks**. La pregunta sobre melfalán intraarterial se
+respondió con 5 fuentes a 72-74 de similitud (umbral 66) y la cifra clave (55% de
+conservación del ojo) se verificó literal en el abstract citado. El perfil se conserva en
+`domains/retinoblastoma.json` como segundo ejemplo de la guía. **Lección:** el endpoint no
+siempre es "nombre + número"; aquí es *globe salvage*, y el sistema lo acepta sin número.
+
 ### Seguridad — barrido previo a GitHub (resultado: limpio)
 - `.env` nunca ha estado en el historial; los 214 blobs del repo no contienen patrones de
   clave (OpenAI `sk-`, AWS, GitHub, HuggingFace, claves privadas, `password=`…); el prefijo
