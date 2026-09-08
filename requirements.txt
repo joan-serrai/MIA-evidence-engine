@@ -1,63 +1,35 @@
-# Dependencias del proyecto MIA
-# Instálalas con:  ./.venv/Scripts/python.exe -m pip install -r requirements.txt
+# MIA dependencies (direct ones only).
+# Install with:  ./.venv/Scripts/python.exe -m pip install -r requirements.txt
 #
-# ─────────────────────────────────────────────────────────────────────────────
-# ¿POR QUÉ LAS VERSIONES ESTÁN FIJADAS CON "==" Y NO CON ">=" ?
-# ─────────────────────────────────────────────────────────────────────────────
-# Hasta el 31-ago-2026 este archivo usaba ">=" (p. ej. "chromadb>=0.5"), que
-# significa "esa versión o cualquiera posterior". Suena flexible, pero al montar
-# el proyecto en un ordenador nuevo pip instaló las últimas de todo, y llegaron
-# saltos de versión MAYOR respecto a las originales:
+# Versions are PINNED with "==" on purpose: they are the ones verified together on
+# Windows 11 + Python 3.12. To upgrade one, bump it, test the pipeline, and pin the
+# new version here. Never by accident.
 #
-#     transformers  4.x  →  5.16     pandas  2.x  →  3.0
-#     numpy         1.x  →  2.5      torch   2.x  →  2.13
-#
-# Un salto de versión mayor puede romper la API sin previo aviso. Esta vez todo
-# funcionó (se verificó ejecutando el pipeline entero), pero fue SUERTE, no
-# diseño. Con "==" congelamos exactamente lo que sabemos que funciona: el
-# proyecto se reinstala igual dentro de un año, en otro equipo o para el
-# tribunal del TFM.
-#
-# ¿Y para actualizar? A propósito, a mano: se sube una dependencia, se prueba,
-# y si va bien se fija la nueva versión aquí. Nunca por accidente.
-#
-# Estas versiones están VERIFICADAS en Windows 11 + Python 3.12.10 (31-ago-2026):
-# corpus de 8.920 chunks recuperado con MedCPT, RAG completo con OpenBioLLM,
-# ambas páginas de Streamlit y las evaluaciones de embeddings.
-#
-# NOTA: aquí solo van las dependencias DIRECTAS (las que importa nuestro código).
-# El árbol completo, con las 122 librerías del entorno, está en
-# `requirements.lock.txt` — úsalo si necesitas reproducir el entorno EXACTO.
-# ─────────────────────────────────────────────────────────────────────────────
+# `requirements.lock.txt` is the full `pip freeze` of the verified environment; use it
+# to reproduce the exact setup (the guided installer does).
 
-# --- Datos: descargar evidencia de las APIs públicas ---
-requests==2.34.2              # llamadas a PubMed y ClinicalTrials.gov
-python-dotenv==1.2.3          # leer variables de entorno desde el archivo .env
+# --- Data: download evidence from the public APIs ---
+requests==2.34.2              # PubMed and ClinicalTrials.gov calls
+python-dotenv==1.2.3          # read settings from the .env file
 
-# --- Base vectorial ---
-chromadb==1.5.9               # base de datos vectorial local (una colección por backend)
+# --- Vector database ---
+chromadb==1.5.9               # local vector store (one collection per profile)
 
 # --- Embeddings ---
-sentence-transformers==6.0.1  # backend bge-small (BAAI/bge-small-en-v1.5)
-transformers==5.16.1          # MedCPT: src/embeddings.py usa AutoTokenizer/AutoModel
-torch==2.13.0                 # motor de cálculo de los dos anteriores
-numpy==2.5.2                  # vectores; lo usa evaluate_embeddings_semantics.py
+sentence-transformers==6.0.1  # alternative backend (BAAI/bge-small-en-v1.5)
+transformers==5.16.1          # MedCPT: src/embeddings.py uses AutoTokenizer/AutoModel
+torch==2.13.0                 # compute engine for the two above
+numpy==2.5.2                  # vectors
 
-# --- LLM local ---
-ollama==0.6.2                 # cliente Python del servidor local de Ollama
+# --- Local LLM ---
+ollama==0.6.2                 # Python client of the local Ollama server
 
-# --- Interfaz y datos tabulares ---
-streamlit==1.62.0             # interfaz de chat y página de comparativa
-pandas==3.0.5                 # manejo de tablas/datos
-matplotlib==3.11.1            # gráficos de las evaluaciones (mapas semánticos, barras)
-tqdm==4.70.0                  # barras de progreso al descargar/procesar
+# --- Interface and tabular data ---
+streamlit==1.62.0             # the app
+pandas==3.0.5                 # tables
+tqdm==4.70.0                  # progress bars while downloading / processing
 
-# --- Solo para la EVALUACIÓN comparativa (la "línea Centivence") ---
-# El producto MIA es 100% local y NO usa esto: sirve únicamente para generar los
-# embeddings de OpenAI con los que se compara MedCPT.
-openai==3.6.0                 # text-embedding-3-small
-
-# --- Solo DESARROLLO (pruebas automáticas; no lo necesita el producto) ---
-# `tests/test_pure.py` cubre las funciones puras (citas, cifras, guardianes,
-# perfiles de dominio) sin Ollama ni ChromaDB. Ejecutar: python -m pytest -q
+# --- Development only (unit tests; not needed to run MIA) ---
+# `tests/test_pure.py` covers the pure functions (citations, figures, guards, domain
+# profiles) without Ollama or ChromaDB. Run:  python -m pytest -q
 pytest==9.0.2

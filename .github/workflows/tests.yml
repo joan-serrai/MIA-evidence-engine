@@ -1,8 +1,8 @@
-# Integración continua mínima: en cada push/PR se ejecutan las pruebas PURAS
-# (tests/test_pure.py), que no necesitan Ollama, ni la base vectorial, ni los
-# modelos de embeddings. Por eso NO se instala torch/transformers (≈2 GB): solo
-# las dependencias que importan los módulos probados, a las mismas versiones
-# fijadas en requirements.txt.
+# Minimal continuous integration: on every push / PR the PURE tests run
+# (tests/test_pure.py). They need neither Ollama, nor the vector database, nor the
+# embedding models, so torch/transformers (~2 GB) are NOT installed: only the
+# dependencies imported by the tested modules, at the same pinned versions as in
+# requirements.txt.
 name: tests
 
 on:

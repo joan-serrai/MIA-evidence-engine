@@ -10,7 +10,6 @@ drug: you describe the domain on the command line, and the script
      search (--query "IL-17 inhibitor") to bring in what names no drug at all.
   3) cleans, chunks, embeds with MedCPT and indexes  →  collection mia_<slug>_medcpt
   4) exports the reproducible census  →  data/corpus_manifest_<slug>.csv
-  5) (optional, --openai) builds the twin OpenAI collection for the embedding benchmark.
 
 Example — plaque psoriasis with anti-IL-17/IL-23 biologics and one oral molecule:
 
@@ -147,8 +146,6 @@ def main():
     parser.add_argument("--activate", action="store_true", help="set this profile as the active one (domains/active.txt)")
     parser.add_argument("--profile-only", action="store_true", help="only write the profile, without downloading or indexing")
     parser.add_argument("--skip-download", action="store_true", help="do not download: index whatever is already in bronze")
-    parser.add_argument("--openai", action="store_true",
-                        help="also build the OpenAI collection (comparison; needs OPENAI_API_KEY)")
     parser.add_argument("--force-default", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.max == 0:
@@ -195,11 +192,6 @@ def main():
         export_corpus_manifest.exportar(config.CHROMA_COLLECTION)
     except Exception as e:  # noqa: BLE001 — el censo es deseable, no imprescindible
         print(f"   [warning] could not export the manifest: {e}")
-
-    if args.openai:
-        print("\n########## EXTRA: OPENAI COLLECTION (comparison) ##########\n")
-        import index_openai
-        index_openai.run()
 
     print("\n✅ Domain ready. Try:")
     q = perfil["example_questions"][0][2][0]

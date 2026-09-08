@@ -1,34 +1,32 @@
-# Tema visual de MIA (Streamlit lo lee automáticamente al arrancar la app).
+# MIA visual theme (Streamlit reads this file automatically at startup).
 #
-# Paleta "Aurora LSHC": fondo oscuro profundo con acentos que recuerdan a una
-# aurora boreal, pero con los colores que se usan en Life Sciences & Health Care
-# (verde-azulado clínico, cian, verde salud y un violeta de apoyo). El verde
-# salvia original de Centivence sigue ahí, aclarado para que contraste sobre
-# oscuro: en un fondo negro, el #3f6e66 original no se leería.
+# "Aurora" palette: deep dark background with accents reminiscent of the northern
+# lights, in the colours used in life sciences and health care (clinical teal, cyan,
+# health green and a supporting violet).
 #
-# Estos valores tiñen los widgets NATIVOS de Streamlit (botones, inputs,
-# sidebar). El aspecto "aurora" en sí —los degradados difusos— se pinta con CSS
-# propio en app/streamlit_app.py, porque config.toml no admite gradientes.
+# These values tint Streamlit's NATIVE widgets (buttons, inputs, sidebar). The
+# soft "aurora" gradients themselves are painted with custom CSS in
+# app/streamlit_app.py, because config.toml does not support gradients.
 [theme]
 base = "dark"
-primaryColor = "#2fe0a8"              # verde-azulado brillante: acento principal
-backgroundColor = "#070d14"           # casi negro con matiz azul (cielo nocturno)
-secondaryBackgroundColor = "#0e1723"  # superficies elevadas (sidebar, bloques)
-textColor = "#e8f1f5"                 # blanco frío, alto contraste sobre el fondo
+primaryColor = "#2fe0a8"              # bright teal-green: main accent
+backgroundColor = "#070d14"           # near-black with a blue tint (night sky)
+secondaryBackgroundColor = "#0e1723"  # raised surfaces (sidebar, blocks)
+textColor = "#e8f1f5"                 # cold white, high contrast on the background
 font = "sans serif"
 
 [client]
-# Ocultamos la barra de herramientas de desarrollador para un look de producto.
+# Hide the developer toolbar for a product-like look.
 toolbarMode = "minimal"
 
 [server]
-# SEGURIDAD (3-sep-2026): por defecto Streamlit escucha en TODAS las interfaces
-# (0.0.0.0) y anuncia una "External URL" pública. MIA es una herramienta LOCAL
-# sin autenticación: la atamos a localhost para que solo se pueda abrir desde
-# este equipo. Para compartirla en una red de confianza, cambiar aquí a propósito.
+# SECURITY: by default Streamlit listens on ALL interfaces (0.0.0.0) and prints a
+# public "External URL". MIA is a LOCAL tool with no authentication, so it is bound
+# to localhost and can only be opened from this computer. To share it on a trusted
+# network, change this on purpose.
 address = "localhost"
 
 [browser]
-# Streamlit envía telemetría de uso a sus servidores por defecto. En un producto
-# que promete "ningún dato sale del ordenador", eso se apaga.
+# Streamlit sends usage telemetry to its servers by default. In a product that
+# promises "no data leaves the computer", that is switched off.
 gatherUsageStats = false
