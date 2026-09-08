@@ -184,8 +184,12 @@ def render(on_built=None):
         filas = _profiles_table()
         if filas:
             st.markdown(_md_table(filas, ["Disease", "Profile", "Drugs", "Indexed chunks", "Endpoints"]))
-        st.caption("Stored in `domains/<profile>.json` and `data/chroma/`. They persist "
-                   "between sessions; switch between them in the MIA tab.")
+            st.caption("Stored in `domains/<profile>.json` and `data/chroma/`. They persist "
+                       "between sessions; switch between them in the MIA tab.")
+        else:
+            # Instalación nueva: ningún perfil todavía (una tabla vacía confunde).
+            st.caption("None yet. The first one you build will appear here and will be "
+                       "remembered between sessions.")
 
     with col_form:
         disease = st.text_input("Disease (in English)", placeholder="Plaque psoriasis",
