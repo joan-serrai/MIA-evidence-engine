@@ -474,12 +474,15 @@ def _icon(name):
 # ==========================================================================
 # 1) Cabecera de marca
 # ==========================================================================
+# La patología solo se nombra si hay un perfil activo: recién instalada, MIA es
+# genérica (no presupone ninguna enfermedad hasta que el usuario construye su corpus).
+_disease_tag = f" · {html.escape(config.DISEASE)}" if config.DISEASE else ""
 st.markdown(
     f"""
     <div class="mia-hero">
       <h1>{_icon("dna")}MIA — Medical Intelligence Agent</h1>
       <div class="tag">Biomedical evidence, <b>100% local and sovereign</b> — your data
-        never leaves this computer · {html.escape(config.DISEASE)}</div>
+        never leaves this computer{_disease_tag}</div>
       <div class="mia-badges">
         <span>{_icon("lock")}100% local · no cloud</span>
         <span>{_icon("cite")}Every figure traceable to its abstract</span>
@@ -588,23 +591,27 @@ def _render_settings():
     # domains/active.txt para que la próxima ejecución arranque en el mismo.
     st.markdown("**:material/coronavirus: Disease profile**")
     _domains = config.list_domains()
-    _labels = {}
-    for _slug in _domains:
-        try:
-            _labels[_slug] = config.load_domain(_slug)["disease"]
-        except Exception:  # noqa: BLE001 — un perfil roto no debe tumbar la app
-            _labels[_slug] = _slug
-    _sel = st.selectbox(
-        "Active profile", _domains,
-        index=_domains.index(config.DOMAIN_SLUG) if config.DOMAIN_SLUG in _domains else 0,
-        format_func=lambda s: f"{_labels.get(s, s)}  ({s})",
-        help="Each profile has its own disease, drugs, endpoints and indexed corpus. "
-             "Profiles are saved on this computer. Create a new one in the Build corpus tab.",
-    )
-    if _sel != config.DOMAIN_SLUG:
-        _on_domain_change(_sel)
-        st.rerun()
-    st.caption(f"{len(config.DRUGS)} drugs · corpus `{config.CHROMA_COLLECTION}`")
+    if not _domains:
+        # Instalación nueva: ningún perfil todavía. No hay nada que elegir.
+        st.caption("No profiles yet. Build your first corpus in the **Build corpus** tab.")
+    else:
+        _labels = {}
+        for _slug in _domains:
+            try:
+                _labels[_slug] = config.load_domain(_slug)["disease"]
+            except Exception:  # noqa: BLE001 — un perfil roto no debe tumbar la app
+                _labels[_slug] = _slug
+        _sel = st.selectbox(
+            "Active profile", _domains,
+            index=_domains.index(config.DOMAIN_SLUG) if config.DOMAIN_SLUG in _domains else 0,
+            format_func=lambda s: f"{_labels.get(s, s)}  ({s})",
+            help="Each profile has its own disease, drugs, endpoints and indexed corpus. "
+                 "Profiles are saved on this computer. Create a new one in the Build corpus tab.",
+        )
+        if _sel != config.DOMAIN_SLUG:
+            _on_domain_change(_sel)
+            st.rerun()
+        st.caption(f"{len(config.DRUGS)} drugs · corpus `{config.CHROMA_COLLECTION}`")
     st.caption(f":material/tune: Evidence threshold: {config.SIMILARITY_THRESHOLD}")
 
     # --- Estado del sistema: semáforos reales (Ollama / modelo / corpus) ---
@@ -954,20 +961,35 @@ EJEMPLOS_POR_INTENCION = [
 ]
 
 def _render_welcome():
-    """Estado vacío: bienvenida + botones de ejemplo del perfil activo."""
+    """Estado vacío: bienvenida + botones de ejemplo del perfil activo.
+
+    Sin corpus (instalación nueva) la bienvenida es GENÉRICA y no hay ejemplos:
+    nombrar una enfermedad o proponer preguntas sobre ella sería mentir, porque
+    no hay nada indexado que las responda.
+    """
+    _has_corpus = bool(config.DISEASE) and _status["corpus"]["ok"]
+    if _has_corpus:
+        _intro = (f"Ask about the evidence on <b>{html.escape(config.DISEASE.lower())}</b> "
+                  "and its drugs.")
+        _cta = "Try an example:"
+    else:
+        _intro = "Ask about the biomedical evidence in <b>your own corpus</b>."
+        _cta = ("There is no corpus yet: build one in the <b>Build corpus</b> tab and "
+                "the example questions for that disease will appear here.")
     st.markdown(
         f"""
         <div class="mia-welcome">
           <h3>Welcome</h3>
-          <p>Ask about the evidence on <b>{html.escape(config.DISEASE.lower())}</b> and
-             its drugs. Everything runs <b>locally</b>: every answer cites the exact
+          <p>{_intro} Everything runs <b>locally</b>: every answer cites the exact
              sources backing it, and when the evidence is not enough MIA says so
-             instead of inventing. Try an example:</p>
+             instead of inventing. {_cta}</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.write("")
+    if not _has_corpus:
+        return
     for titulo, icono, ejemplos in EJEMPLOS_POR_INTENCION:
         st.caption(f"{icono} **{titulo}**")
         cols = st.columns(len(ejemplos))
@@ -1222,8 +1244,15 @@ def _after_build(slug):
         _on_domain_change(slug)   # el aviso ("flash") lo escribe corpus_tab
 
 
-tab_mia, tab_corpus, tab_about = st.tabs([
-    ":material/chat: MIA", ":material/construction: Build corpus", ":material/info: About"])
+# Orden de las pestañas: si NO hay corpus (instalación nueva o perfil vacío), la
+# primera es "Build corpus", que es lo único útil que se puede hacer. Streamlit no
+# permite elegir la pestaña activa por código, pero sí abre siempre la primera.
+_tab_labels = {"mia": ":material/chat: MIA",
+               "corpus": ":material/construction: Build corpus",
+               "about": ":material/info: About"}
+_tab_order = ["mia", "corpus", "about"] if _status["corpus"]["ok"] else ["corpus", "mia", "about"]
+_tabs = dict(zip(_tab_order, st.tabs([_tab_labels[k] for k in _tab_order])))
+tab_mia, tab_corpus, tab_about = _tabs["mia"], _tabs["corpus"], _tabs["about"]
 
 with tab_mia:
     flash = st.session_state.pop("flash", None)

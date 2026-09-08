@@ -26,11 +26,20 @@ import config  # noqa: E402
 from src import citations, outcomes, processing, rag  # noqa: E402
 
 
+# El perfil original vive en domains/ (rama del TFM) o, en la versión pública que
+# no trae ningún perfil preinstalado, como ejemplo en domains/examples/. Las
+# pruebas lo buscan en los dos sitios para valer en ambas ramas.
+_PROFILE_DIRS = [ROOT / "domains", ROOT / "domains" / "examples"]
+_PROFILE_DIR = next((d for d in _PROFILE_DIRS if (d / "atopic_dermatitis.json").exists()),
+                    _PROFILE_DIRS[0])
+
+
 @pytest.fixture(autouse=True)
-def _dominio_por_defecto():
+def _dominio_por_defecto(monkeypatch):
     """Las pruebas asumen el perfil original. Si el usuario dejó otro perfil activo
     (domains/active.txt o MIA_DOMAIN), lo activamos aquí SOLO en memoria (sin
     persistir) para que la suite no dependa del estado de la máquina."""
+    monkeypatch.setattr(config, "DOMAINS_DIR", _PROFILE_DIR)
     config.activate_domain("atopic_dermatitis")
     yield
     config.activate_domain("atopic_dermatitis")
@@ -78,7 +87,7 @@ def test_domain_switch_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ACTIVE_DOMAIN_FILE", tmp_path / "active.txt")
     # copiamos el perfil por defecto para poder volver a él
     (tmp_path / "atopic_dermatitis.json").write_text(
-        (ROOT / "domains" / "atopic_dermatitis.json").read_text(encoding="utf-8"), encoding="utf-8")
+        (_PROFILE_DIR / "atopic_dermatitis.json").read_text(encoding="utf-8"), encoding="utf-8")
     (tmp_path / "psoriasis_test.json").write_text(json.dumps({
         "disease": "Plaque psoriasis", "synonyms": ["psoriasis"],
         "drug_classes": {"il17": ["secukinumab", "ixekizumab"], "oral": ["apremilast"]},

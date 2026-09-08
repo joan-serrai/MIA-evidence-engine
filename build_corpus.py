@@ -1,40 +1,26 @@
-"""
-build_corpus.py — Crear un PERFIL DE DOMINIO nuevo y descargar/indexar su corpus.
+"""build_corpus.py — Create a new DOMAIN PROFILE and download/index its corpus.
 
-Hasta ahora MIA solo sabía de dermatitis atópica: la enfermedad y sus fármacos
-estaban escritos en config.py. Este script es la "puerta de entrada" para usar
-MIA con CUALQUIER patología, mecanismo o fármaco: describes el dominio en la
-línea de comandos, y el script
+This script is the entry point for using MIA with ANY disease, mechanism or
+drug: you describe the domain on the command line, and the script
 
-  1) escribe el perfil  →  domains/<slug>.json
-     (enfermedad, sinónimos, fármacos por clase, mecanismos, endpoints, ejemplos)
-  2) descarga la evidencia  →  data/bronze/<slug>/   (PubMed + ClinicalTrials.gov)
-     por cada (enfermedad + fármaco) y, además, por cada búsqueda libre extra
-     (--query "IL-17 inhibitor") para traer lo que no nombra ningún fármaco.
-  3) limpia, trocea, vectoriza con MedCPT e indexa  →  colección mia_<slug>_medcpt
-  4) exporta el censo reproducible  →  data/corpus_manifest_<slug>.csv
-  5) (opcional, --openai) construye la colección OpenAI gemela para la comparativa.
+  1) writes the profile  →  domains/<slug>.json
+     (disease, synonyms, drugs by class, mechanisms, endpoints, example questions)
+  2) downloads the evidence  →  data/bronze/<slug>/   (PubMed + ClinicalTrials.gov)
+     for every (disease + drug) pair and, in addition, for every free-text extra
+     search (--query "IL-17 inhibitor") to bring in what names no drug at all.
+  3) cleans, chunks, embeds with MedCPT and indexes  →  collection mia_<slug>_medcpt
+  4) exports the reproducible census  →  data/corpus_manifest_<slug>.csv
+  5) (optional, --openai) builds the twin OpenAI collection for the embedding benchmark.
 
-Ejemplo — psoriasis en placas con biológicos anti-IL-17/IL-23 y una molécula oral:
+Example — plaque psoriasis with anti-IL-17/IL-23 biologics and one oral molecule:
 
-  ./.venv/Scripts/python.exe build_corpus.py \
-      --disease "Plaque psoriasis" --synonym psoriasis \
-      --class "il17_biologics=secukinumab,ixekizumab,bimekizumab" \
-      --class "il23_biologics=risankizumab,guselkumab" \
-      --class "oral=apremilast,deucravacitinib" \
-      --class-label "il17_biologics=anti-IL-17 antibodies" \
-      --mechanism "il-17=secukinumab,ixekizumab,bimekizumab" \
-      --mechanism "il-23=risankizumab,guselkumab" \
-      --mechanism "tyk2=deucravacitinib" \
-      --endpoint "PASI 100" --endpoint "PASI 90" --endpoint "PASI 75" --endpoint "sPGA 0/1" \
-      --query "IL-17 inhibitor" --max 50 --activate
+  ./.venv/Scripts/python.exe build_corpus.py       --disease "Plaque psoriasis" --synonym psoriasis       --class "il17_biologics=secukinumab,ixekizumab,bimekizumab"       --class "il23_biologics=risankizumab,guselkumab"       --class "oral=apremilast,deucravacitinib"       --class-label "il17_biologics=anti-IL-17 antibodies"       --mechanism "il-17=secukinumab,ixekizumab,bimekizumab"       --mechanism "il-23=risankizumab,guselkumab"       --mechanism "tyk2=deucravacitinib"       --endpoint "PASI 100" --endpoint "PASI 90" --endpoint "PASI 75" --endpoint "sPGA 0/1"       --query "IL-17 inhibitor" --max 50 --activate
 
-Después:   ./.venv/Scripts/python.exe src/rag.py "Is secukinumab effective in plaque psoriasis?"
-           (o arranca la app y elige el perfil en la barra lateral).
+Then:   ./.venv/Scripts/python.exe src/rag.py "Is secukinumab effective in plaque psoriasis?"
+        (or start the app and pick the profile in the settings panel).
 
-El perfil original (dermatitis atópica) no se toca: conserva su corpus y sus
-colecciones históricas, y se puede volver a él desde la app o con
-`--activate` sobre `atopic_dermatitis`.
+Existing profiles are not touched: each keeps its own corpus and collections, and
+you can switch back to any of them from the app or with `--activate`.
 """
 
 import argparse
@@ -52,7 +38,7 @@ except Exception:
 def _kv_list(valor, sep="="):
     """'clave=a,b,c' → ('clave', ['a','b','c']). Tolera espacios y mayúsculas."""
     if sep not in valor:
-        raise argparse.ArgumentTypeError(f"esperaba 'clave{sep}valor', recibí {valor!r}")
+        raise argparse.ArgumentTypeError(f"expected 'key{sep}value', got {valor!r}")
     clave, resto = valor.split(sep, 1)
     items = [x.strip().lower() for x in resto.split(",") if x.strip()]
     return clave.strip().lower(), items
@@ -61,7 +47,7 @@ def _kv_list(valor, sep="="):
 def _kv_text(valor):
     """'clave=texto libre' → ('clave', 'texto libre')."""
     if "=" not in valor:
-        raise argparse.ArgumentTypeError(f"esperaba 'clave=texto', recibí {valor!r}")
+        raise argparse.ArgumentTypeError(f"expected 'key=text', got {valor!r}")
     clave, texto = valor.split("=", 1)
     return clave.strip().lower(), texto.strip()
 
@@ -75,8 +61,8 @@ def build_profile(args):
     slug = args.slug or config.slugify(args.disease)
     if slug == config.DEFAULT_DOMAIN and not args.force_default:
         raise SystemExit(
-            f"'{slug}' es el perfil original del capstone. Elige otro --slug, o pasa "
-            "--force-default si de verdad quieres sobrescribirlo.")
+            f"'{slug}' is the original capstone profile. Choose another --slug, or pass "
+            "--force-default if you really want to overwrite it.")
 
     clases = {}
     for clave, farmacos in (args.drug_class or []):
@@ -86,7 +72,7 @@ def build_profile(args):
         clases.setdefault("drugs", [])
         clases["drugs"] += [d.lower() for d in args.drug if d.lower() not in clases["drugs"]]
     if not any(clases.values()):
-        raise SystemExit("Hace falta al menos un fármaco: --drug X  o  --class clase=a,b")
+        raise SystemExit("At least one drug is required: --drug X  or  --class class=a,b")
 
     todos = [d for ds in clases.values() for d in ds]
     disease = args.disease.strip()
@@ -120,7 +106,7 @@ def build_profile(args):
         "slug": slug,
         "disease": disease,
         "synonyms": [s.strip() for s in (args.synonym or []) if s.strip()],
-        "description": args.description or f"Perfil creado con build_corpus.py para {disease}.",
+        "description": args.description or f"Profile created with build_corpus.py for {disease}.",
         "drug_classes": clases,
         "class_labels": dict(args.class_label or []),
         "extra_drugs": [d.lower() for d in (args.extra_drug or [])],
@@ -138,31 +124,31 @@ def build_profile(args):
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--disease", required=True, help="nombre de la patología (en inglés)")
-    parser.add_argument("--slug", help="identificador corto (def.: derivado de --disease)")
-    parser.add_argument("--synonym", action="append", help="sinónimo para la búsqueda (repetible)")
-    parser.add_argument("--description", help="texto libre que describe el perfil")
+    parser.add_argument("--disease", required=True, help="name of the disease (in English)")
+    parser.add_argument("--slug", help="short identifier (default: derived from --disease)")
+    parser.add_argument("--synonym", action="append", help="search synonym (repeatable)")
+    parser.add_argument("--description", help="free text describing the profile")
     parser.add_argument("--class", dest="drug_class", action="append", type=_kv_list,
-                        metavar="CLASE=F1,F2", help="fármacos de una clase (repetible)")
+                        metavar="CLASS=D1,D2", help="drugs of one class (repeatable)")
     parser.add_argument("--class-label", action="append", type=_kv_text,
-                        metavar="CLASE=etiqueta", help="nombre legible de la clase (repetible)")
-    parser.add_argument("--drug", action="append", help="fármaco sin clase (repetible)")
+                        metavar="CLASS=label", help="human-readable name of the class (repeatable)")
+    parser.add_argument("--drug", action="append", help="drug without a class (repeatable)")
     parser.add_argument("--extra-drug", action="append",
-                        help="fármaco secundario: se etiqueta si aparece, no se descarga (repetible)")
+                        help="secondary drug: tagged if it appears, not downloaded (repeatable)")
     parser.add_argument("--mechanism", action="append", type=_kv_list,
-                        metavar="MEC=F1,F2", help="mecanismo → fármacos (repetible)")
+                        metavar="MECH=D1,D2", help="mechanism → drugs (repeatable)")
     parser.add_argument("--endpoint", action="append",
-                        help="endpoint de eficacia, p. ej. 'PASI 75' o 'ACR20' (repetible; el orden importa: específicos primero)")
+                        help="efficacy endpoint, e.g. 'PASI 75' or 'ACR20' (repeatable; order matters: most specific first)")
     parser.add_argument("--safety-term", action="append",
-                        help="evento adverso propio del dominio a extraer, p. ej. 'candidiasis' (repetible)")
+                        help="domain-specific adverse event to extract, e.g. 'candidiasis' (repeatable)")
     parser.add_argument("--query", action="append",
-                        help="búsqueda libre extra (p. ej. un mecanismo) además de fármaco+enfermedad (repetible)")
-    parser.add_argument("--max", type=int, default=50, help="máx. resultados por fármaco y fuente (def: 50; 0 = SIN TOPE, todo lo que haya)")
-    parser.add_argument("--activate", action="store_true", help="dejar este perfil como activo (domains/active.txt)")
-    parser.add_argument("--profile-only", action="store_true", help="solo escribir el perfil, sin descargar ni indexar")
-    parser.add_argument("--skip-download", action="store_true", help="no descargar: indexar lo que ya haya en bronze")
+                        help="extra free-text search (e.g. a mechanism) besides drug+disease (repeatable)")
+    parser.add_argument("--max", type=int, default=50, help="max. results per drug and source (default: 50; 0 = NO LIMIT, everything available)")
+    parser.add_argument("--activate", action="store_true", help="set this profile as the active one (domains/active.txt)")
+    parser.add_argument("--profile-only", action="store_true", help="only write the profile, without downloading or indexing")
+    parser.add_argument("--skip-download", action="store_true", help="do not download: index whatever is already in bronze")
     parser.add_argument("--openai", action="store_true",
-                        help="construir también la colección OpenAI (comparativa; necesita OPENAI_API_KEY)")
+                        help="also build the OpenAI collection (comparison; needs OPENAI_API_KEY)")
     parser.add_argument("--force-default", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.max == 0:
@@ -175,52 +161,52 @@ def main():
     existia = destino.exists()
     destino.write_text(json.dumps(perfil, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("=" * 64)
-    print(f" Perfil {'actualizado' if existia else 'creado'}: {destino}")
-    print(f"   {perfil['disease']}  ·  {sum(len(v) for v in perfil['drug_classes'].values())} fármacos"
-          f"  ·  {len(perfil['efficacy_endpoints'])} endpoints  ·  {len(perfil['extra_queries'])} búsquedas extra")
+    print(f" Profile {'updated' if existia else 'created'}: {destino}")
+    print(f"   {perfil['disease']}  ·  {sum(len(v) for v in perfil['drug_classes'].values())} drugs"
+          f"  ·  {len(perfil['efficacy_endpoints'])} endpoints  ·  {len(perfil['extra_queries'])} extra queries")
     print("=" * 64)
 
     # A partir de aquí TODO el código (ingestion, processing, rag…) trabaja sobre
     # este dominio: config recalcula DISEASE, DRUGS, BRONZE_DIR, CHROMA_COLLECTION…
     config.activate_domain(slug, persist=args.activate)
-    print(f"Dominio activo en este proceso: {config.DOMAIN_SLUG} → colección {config.CHROMA_COLLECTION}")
+    print(f"Active domain in this process: {config.DOMAIN_SLUG} → collection {config.CHROMA_COLLECTION}")
     if args.activate:
-        print(f"Marcado como perfil por defecto en {config.ACTIVE_DOMAIN_FILE}")
+        print(f"Set as the default profile in {config.ACTIVE_DOMAIN_FILE}")
 
     if args.profile_only:
-        print("\n--profile-only: no se descarga ni se indexa. Para hacerlo más tarde:")
+        print("\n--profile-only: nothing is downloaded or indexed. To do it later:")
         print(f"  ./.venv/Scripts/python.exe run_phase1.py --domain {slug} --max {args.max or 0}")
         return
 
     from src import ingestion, processing   # import tardío: cargan torch/transformers
 
     if not args.skip_download:
-        print("\n########## PASO 1/3: DESCARGA (bronze) ##########\n")
+        print("\n########## STEP 1/3: DOWNLOAD (bronze) ##########\n")
         ingestion.run(max_results=args.max)
     else:
-        print("\n--skip-download: se usa lo que ya hay en", config.BRONZE_DIR)
+        print("\n--skip-download: using what is already in", config.BRONZE_DIR)
 
-    print("\n########## PASO 2/3: PROCESADO + INDEXADO (silver + chroma) ##########\n")
+    print("\n########## STEP 2/3: PROCESSING + INDEXING (silver + chroma) ##########\n")
     processing.run()
 
-    print("\n########## PASO 3/3: CENSO DEL CORPUS ##########\n")
+    print("\n########## STEP 3/3: CORPUS MANIFEST ##########\n")
     try:
         import export_corpus_manifest
         export_corpus_manifest.exportar(config.CHROMA_COLLECTION)
     except Exception as e:  # noqa: BLE001 — el censo es deseable, no imprescindible
-        print(f"   [aviso] no se pudo exportar el censo: {e}")
+        print(f"   [warning] could not export the manifest: {e}")
 
     if args.openai:
-        print("\n########## EXTRA: COLECCIÓN OPENAI (comparativa) ##########\n")
+        print("\n########## EXTRA: OPENAI COLLECTION (comparison) ##########\n")
         import index_openai
         index_openai.run()
 
-    print("\n✅ Dominio listo. Prueba:")
+    print("\n✅ Domain ready. Try:")
     q = perfil["example_questions"][0][2][0]
     print(f'   ./.venv/Scripts/python.exe src/rag.py "{q}"')
     if not args.activate:
-        print(f"   (o con el perfil explícito:  set MIA_DOMAIN={slug}  /  --activate)")
-    print("   o arranca la app y elige el perfil en la barra lateral.")
+        print(f"   (or with the explicit profile:  set MIA_DOMAIN={slug}  /  --activate)")
+    print("   or start the app and pick the profile in the sidebar.")
 
 
 if __name__ == "__main__":

@@ -37,6 +37,11 @@ DATA_DIR = BASE_DIR / "data"
 CHROMA_DIR = DATA_DIR / "chroma"   # base vectorial (ChromaDB); UNA carpeta para todos los dominios
 DOMAINS_DIR = BASE_DIR / "domains" # perfiles de dominio (uno por patología)
 DEFAULT_DOMAIN = "atopic_dermatitis"
+# Slug "virtual" del perfil VACÍO: una instalación nueva no trae ningún
+# domains/<slug>.json (8-sep-2026: MIA es genérica hasta que el usuario construye
+# su primer corpus). Con él, DISEASE == "" y el resto de listas quedan vacías; la
+# app lo detecta y manda a la pestaña "Build corpus" en vez de suponer una patología.
+NO_DOMAIN = "none"
 ACTIVE_DOMAIN_FILE = DOMAINS_DIR / "active.txt"
 
 # El .env se carga por ruta explícita (no por cwd) para que funcione desde
@@ -206,15 +211,24 @@ def endpoint_spec(entry):
 
 def load_domain(slug):
     """Lee y valida domains/<slug>.json. Devuelve el dict con valores por defecto."""
+    if slug in (None, NO_DOMAIN):
+        # Perfil vacío (ver NO_DOMAIN): mismas claves que un perfil real, todo en
+        # blanco, para que el código que lee config.DRUGS, config.EFFICACY_ENDPOINTS…
+        # siga funcionando sin comprobar nada especial.
+        return {"slug": NO_DOMAIN, "disease": "", "synonyms": [], "drug_classes": {},
+                "class_labels": {}, "extra_drugs": [], "mechanisms": {},
+                "efficacy_endpoints": [], "safety_terms": [], "extra_queries": [],
+                "example_questions": [], "mechanism_questions": [],
+                "legacy_collections": False, "endpoint_examples": "the named endpoint"}
     path = domain_path(slug)
     if not path.exists():
         raise FileNotFoundError(
-            f"No existe el perfil de dominio '{slug}' ({path}). "
-            f"Disponibles: {', '.join(list_domains()) or '(ninguno)'}. "
-            "Crea uno con:  python build_corpus.py --disease \"...\" --drug ...")
+            f"Domain profile '{slug}' not found ({path}). "
+            f"Available: {', '.join(list_domains()) or '(none)'}. "
+            "Create one with:  python build_corpus.py --disease \"...\" --drug ...")
     d = json.loads(path.read_text(encoding="utf-8"))
     if not d.get("disease"):
-        raise ValueError(f"El perfil {path} no tiene 'disease'.")
+        raise ValueError(f"Profile {path} has no 'disease' field.")
     d.setdefault("slug", slug)
     d.setdefault("synonyms", [])
     d.setdefault("drug_classes", {})
@@ -253,12 +267,18 @@ def collection_name(backend=None, slug=None):
 
 
 def resolve_active_domain():
-    """Slug del perfil activo: MIA_DOMAIN > domains/active.txt > DEFAULT_DOMAIN."""
+    """Slug del perfil activo: MIA_DOMAIN > domains/active.txt > DEFAULT_DOMAIN.
+
+    Si ni siquiera existe el perfil por defecto (instalación nueva, sin ningún
+    domains/<slug>.json), devuelve NO_DOMAIN: MIA arranca "en blanco".
+    """
     slug = (os.getenv("MIA_DOMAIN") or "").strip()
     if not slug and ACTIVE_DOMAIN_FILE.exists():
         slug = ACTIVE_DOMAIN_FILE.read_text(encoding="utf-8").strip()
     if not slug or not domain_path(slug).exists():
         slug = DEFAULT_DOMAIN
+    if not domain_path(slug).exists():
+        return NO_DOMAIN
     return slug
 
 

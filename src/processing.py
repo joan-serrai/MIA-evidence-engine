@@ -566,7 +566,7 @@ def index_in_chroma(chunks, embeddings):
     los chunks existentes se ACTUALIZAN en lugar de duplicarse (idempotencia).
     """
     if not chunks:
-        print("No hay chunks que indexar.")
+        print("No chunks to index.")
         return None
 
     config.CHROMA_DIR.mkdir(parents=True, exist_ok=True)
@@ -635,17 +635,17 @@ def index_new_bronze(paths, term):
 def run():
     """Pipeline completo de procesado: limpiar → trocear → embeber → indexar."""
     print("=" * 60)
-    print(" MIA · Fase 1 — Procesado e indexado (silver + chroma)")
+    print(" MIA · Phase 1 — Processing and indexing (silver + chroma)")
     print("=" * 60)
     chunks = clean_and_chunk()
-    print(f"Chunks generados: {len(chunks)}")
+    print(f"Chunks generated: {len(chunks)}")
     if not chunks:
-        print("⚠ No hay datos en bronze. Ejecuta primero la ingesta.")
+        print("⚠ No data in bronze. Run the ingestion first.")
         return
     embeddings = embed_chunks(chunks)
     collection = index_in_chroma(chunks, embeddings)
-    print(f"Chunks indexados en ChromaDB: {collection.count()}")
-    print(f"Colección: {config.CHROMA_COLLECTION}  ·  Ruta: {config.CHROMA_DIR}")
+    print(f"Chunks indexed in ChromaDB: {collection.count()}")
+    print(f"Collection: {config.CHROMA_COLLECTION}  ·  Path: {config.CHROMA_DIR}")
 
 
 if __name__ == "__main__":

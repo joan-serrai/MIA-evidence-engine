@@ -74,14 +74,14 @@ def _request_with_retry(method_kwargs, *, max_retries=4, base_wait=1.0):
             return resp
         if resp.status_code == 429 or resp.status_code >= 500:
             espera = base_wait * (2 ** (intento - 1))  # 1s, 2s, 4s, 8s...
-            print(f"   [aviso] HTTP {resp.status_code}; reintento {intento}/{max_retries} "
-                  f"en {espera:.0f}s")
+            print(f"   [warning] HTTP {resp.status_code}; retry {intento}/{max_retries} "
+                  f"in {espera:.0f}s")
             time.sleep(espera)
             continue
         # Error no recuperable: que explote con un mensaje claro.
         resp.raise_for_status()
     # Si agotamos los reintentos:
-    raise RuntimeError(f"La petición falló tras {max_retries} reintentos: {method_kwargs}")
+    raise RuntimeError(f"Request failed after {max_retries} retries: {method_kwargs}")
 
 
 def _get_json(url, params):
@@ -358,10 +358,10 @@ def run(max_results=50):
     (config.EXTRA_QUERIES: p. ej. un mecanismo — "IL-17 inhibitor" — para traer
     evidencia que no nombra ningún fármaco concreto)."""
     print("=" * 60)
-    print(" MIA · Fase 1 — Ingesta de datos (bronze)")
+    print(" MIA · Phase 1 — Data ingestion (bronze)")
     print("=" * 60)
     total_ct, total_pm = 0, 0
-    for drug in tqdm(config.DRUGS, desc="Fármacos"):
+    for drug in tqdm(config.DRUGS, desc="Drugs"):
         try:
             ct = fetch_clinical_trials(config.DISEASE_QUERY, drug, max_results)
             total_ct += len(ct)
@@ -378,13 +378,13 @@ def run(max_results=50):
             p_ct = search_clinical_trials(extra, max_results, cond=config.DISEASE_QUERY)
             p_pm = search_pubmed(f"{extra} AND {pubmed_disease_clause(config.DISEASE_QUERY)}",
                                  max_results, fallback_term=term)
-            print(f"   [extra] '{extra}': CT {'sí' if p_ct else 'no'} · PubMed {'sí' if p_pm else 'no'}")
+            print(f"   [extra] '{extra}': CT {'yes' if p_ct else 'no'} · PubMed {'yes' if p_pm else 'no'}")
         except Exception as e:
-            print(f"   [error] búsqueda extra '{extra}': {e}")
+            print(f"   [error] extra search '{extra}': {e}")
     print("-" * 60)
-    print(f"Ensayos clínicos descargados: {total_ct}")
-    print(f"Abstracts PubMed descargados: {total_pm}")
-    print(f"Archivos crudos en: {config.BRONZE_DIR}")
+    print(f"Clinical trials downloaded: {total_ct}")
+    print(f"PubMed abstracts downloaded: {total_pm}")
+    print(f"Raw files in: {config.BRONZE_DIR}")
 
 
 if __name__ == "__main__":

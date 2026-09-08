@@ -41,18 +41,18 @@ function Warn($m) { Write-Host "[!]  $m" -ForegroundColor Yellow }
 function Fail($m) { Write-Host "[X]  $m" -ForegroundColor Red }
 function Step($n, $t) {
     Write-Host ""
-    Write-Host "--- Paso $n de 8: $t" -ForegroundColor Cyan
+    Write-Host "--- Step $n of 8: $t" -ForegroundColor Cyan
 }
 
 function Ask-Continue($what) {
     # Devuelve $true si el usuario acepta (Enter o S), $false si escribe N.
-    if ($Yes) { Info "$what  -> si (modo -Yes)"; return $true }
-    $r = Read-Host "     $what  [Enter = si / N = no]"
+    if ($Yes) { Info "$what  -> yes (-Yes mode)"; return $true }
+    $r = Read-Host "     $what  [Enter = yes / N = no]"
     return ($r -eq "" -or $r -match '^[sSyY]')
 }
 
 function Pause-Exit($code) {
-    if (-not $Yes) { Read-Host "`nPulsa Enter para salir" | Out-Null }
+    if (-not $Yes) { Read-Host "`nPress Enter to exit" | Out-Null }
     exit $code
 }
 
@@ -61,7 +61,7 @@ function Stop-Setup($why, $how) {
     Write-Host ""
     Fail $why
     Info $how
-    Info "Cuando lo tengas, vuelve a ejecutar setup.bat: los pasos ya hechos se saltan solos."
+    Info "Once you have it, run setup.bat again: the steps already done are skipped automatically."
     Pause-Exit 1
 }
 
@@ -69,7 +69,7 @@ function Run-Py($code) {
     # Ejecuta un trozo de Python con el venv y devuelve su salida (sin errores).
     # Es la forma de leer config.py (UNICA fuente de verdad) desde PowerShell.
     $out = & $venvPy -c $code
-    if ($LASTEXITCODE -ne 0) { throw "Python fallo al ejecutar: $code" }
+    if ($LASTEXITCODE -ne 0) { throw "Python failed to run: $code" }
     return ($out | Out-String).Trim()
 }
 
@@ -78,39 +78,39 @@ function Run-Py($code) {
 # ----------------------------------------------------------------------------
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor DarkCyan
-Write-Host "  MIA - Instalacion guiada (primera vez)"           -ForegroundColor Cyan
+Write-Host "  MIA - Guided setup (first time)"                  -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor DarkCyan
 Write-Host ""
-Info "Voy a preparar MIA en esta carpeta:"
+Info "About to set up MIA in this folder:"
 Info "  $root"
 Write-Host ""
-Info "Que se descarga y donde queda (aprox.):"
-Info "  - Librerias de Python  1,6 GB   -> carpeta .venv de este proyecto"
-Info "  - Modelo OpenBioLLM    4,9 GB   -> carpeta de modelos de Ollama"
-Info "  - Encoders MedCPT      0,8 GB   -> cache de HuggingFace de tu usuario"
-Info "  - Corpus (PubMed)      0 MB     -> lo eliges tu en la app, al final"
+Info "What gets downloaded and where it goes (approx.):"
+Info "  - Python libraries     1.6 GB   -> this project's .venv folder"
+Info "  - OpenBioLLM model     4.9 GB   -> Ollama's models folder"
+Info "  - MedCPT encoders      0.8 GB   -> your user's HuggingFace cache"
+Info "  - Corpus (PubMed)      0 MB     -> you choose it in the app, at the end"
 Write-Host ""
-Info "Antes de cada descarga grande te pregunto. Puedes cerrar la ventana"
-Info "en cualquier momento y volver a ejecutar setup.bat mas tarde."
+Info "You will be asked before each large download. You can close the window"
+Info "at any time and run setup.bat again later."
 Write-Host ""
 # Windows limita las rutas a 260 caracteres y torch instala archivos con rutas
 # muy profundas dentro de .venv. Medido el 8-sep-2026: con el proyecto en una
 # carpeta de ~150 caracteres, pip fallo con "WinError 206: nombre demasiado
 # largo". Avisamos antes de perder 10 minutos descargando.
 if ($root.Length -gt 90) {
-    Warn "La ruta del proyecto tiene $($root.Length) caracteres. Windows limita las rutas a 260 y"
-    Warn "la instalacion de las librerias puede fallar ('nombre demasiado largo')."
-    Info "Recomendado: mueve la carpeta a una ruta corta, por ejemplo C:\dev\MIA, y vuelve a empezar."
-    if (-not (Ask-Continue "Seguir aqui de todas formas?")) { Pause-Exit 0 }
+    Warn "The project path is $($root.Length) characters long. Windows limits paths to 260 and"
+    Warn "installing the libraries may fail ('filename too long')."
+    Info "Recommended: move the folder to a short path, for example C:\dev\MIA, and start again."
+    if (-not (Ask-Continue "Continue here anyway?")) { Pause-Exit 0 }
 }
-if (-not (Ask-Continue "Empezamos?")) { Pause-Exit 0 }
+if (-not (Ask-Continue "Shall we start?")) { Pause-Exit 0 }
 
 # ----------------------------------------------------------------------------
 # Paso 1: Python. Buscamos primero el lanzador "py" (lo trae el instalador de
 # python.org); si no, un "python" en el PATH que NO sea el alias falso de la
 # Microsoft Store (ese abre la tienda en vez de ejecutar nada).
 # ----------------------------------------------------------------------------
-Step 1 "Python 3.11 o superior"
+Step 1 "Python 3.11 or higher"
 
 function Find-Python {
     $py = Get-Command py -ErrorAction SilentlyContinue
@@ -138,19 +138,19 @@ function Find-Python {
 
 $pyExe = $null
 if (Test-Path $venvPy) {
-    Ok "Ya hay un entorno virtual; no hace falta buscar Python."
+    Ok "A virtual environment already exists; no need to look for Python."
 } else {
     $pyExe = Find-Python
     if (-not $pyExe) {
         $store = Get-Command python -ErrorAction SilentlyContinue
         if ($store -and $store.Source -match "WindowsApps") {
-            Warn "El 'python' de tu equipo es el alias de la Microsoft Store, no un Python real."
+            Warn "The 'python' on this machine is the Microsoft Store alias, not a real Python."
         }
-        Stop-Setup "No encuentro Python 3.11 o superior." `
-                   "Instalalo desde https://www.python.org/downloads/ (marca 'Add python.exe to PATH')."
+        Stop-Setup "Python 3.11 or higher not found." `
+                   "Install it from https://www.python.org/downloads/ (tick 'Add python.exe to PATH')."
     }
     $ver = & $pyExe -c "import sys; print('%d.%d.%d' % sys.version_info[:3])"
-    Ok "Python $ver en $pyExe"
+    Ok "Python $ver at $pyExe"
 }
 
 # ----------------------------------------------------------------------------
@@ -158,14 +158,14 @@ if (Test-Path $venvPy) {
 # con exactamente las librerias que MIA necesita. No se sube a git: hay que
 # crearla en cada equipo. Pesa 1,6 GB una vez instaladas las dependencias.
 # ----------------------------------------------------------------------------
-Step 2 "Entorno virtual (.venv)"
+Step 2 "Virtual environment (.venv)"
 if (Test-Path $venvPy) {
-    Ok "Entorno virtual encontrado."
+    Ok "Virtual environment found."
 } else {
-    Todo "No existe. Lo creo con:  python -m venv .venv  (unos segundos)"
+    Todo "Not found. Creating it with:  python -m venv .venv  (a few seconds)"
     & $pyExe -m venv (Join-Path $root ".venv")
-    if (-not (Test-Path $venvPy)) { Stop-Setup "No se pudo crear el entorno virtual." "Revisa el error de arriba." }
-    Ok "Entorno virtual creado."
+    if (-not (Test-Path $venvPy)) { Stop-Setup "Could not create the virtual environment." "Check the error above." }
+    Ok "Virtual environment created."
 }
 
 # ----------------------------------------------------------------------------
@@ -173,26 +173,26 @@ if (Test-Path $venvPy) {
 # paquetes) para reproducir el entorno con el que se probo MIA. Es el paso
 # mas largo por torch (el motor de los embeddings), que pesa mas de 1 GB.
 # ----------------------------------------------------------------------------
-Step 3 "Dependencias de Python"
+Step 3 "Python dependencies"
 $missingCheck = "import importlib.util as u; mods=['streamlit','chromadb','transformers','torch','ollama','sentence_transformers','dotenv','requests']; print(','.join(m for m in mods if u.find_spec(m) is None))"
 $missing = Run-Py $missingCheck
 if ($missing -eq "") {
-    Ok "Dependencias instaladas."
+    Ok "Dependencies installed."
 } else {
-    Todo "Faltan paquetes: $missing"
-    Info "Voy a instalar requirements.lock.txt: unos 1,6 GB, entre 5 y 15 minutos segun tu conexion."
-    if (Ask-Continue "Instalar ahora?") {
+    Todo "Missing packages: $missing"
+    Info "About to install requirements.lock.txt: around 1.6 GB, 5 to 15 minutes depending on your connection."
+    if (Ask-Continue "Install now?") {
         & $venvPy -m pip install --upgrade pip --quiet
         & $venvPy -m pip install -r (Join-Path $root "requirements.lock.txt")
-        if ($LASTEXITCODE -ne 0) { Stop-Setup "pip termino con error." "Lee el mensaje de arriba; suele ser red o falta de espacio en disco." }
+        if ($LASTEXITCODE -ne 0) { Stop-Setup "pip finished with an error." "Read the message above; it is usually the network or not enough disk space." }
         $missing = Run-Py $missingCheck
-        if ($missing -ne "") { Stop-Setup "Tras instalar siguen faltando: $missing" "Vuelve a ejecutar setup.bat; si persiste, abre una Issue en GitHub." }
-        Ok "Dependencias instaladas."
+        if ($missing -ne "") { Stop-Setup "Still missing after installing: $missing" "Run setup.bat again; if it persists, open an Issue on GitHub." }
+        Ok "Dependencies installed."
     } else {
-        Stop-Setup "Sin las dependencias MIA no puede arrancar." "Vuelve a ejecutar setup.bat cuando quieras instalarlas."
+        Stop-Setup "MIA cannot start without the dependencies." "Run setup.bat again whenever you want to install them."
     }
 }
-Info "Comprobacion del entorno (check_setup.py):"
+Info "Environment check (check_setup.py):"
 & $venvPy (Join-Path $root "check_setup.py")
 
 # ----------------------------------------------------------------------------
@@ -200,13 +200,13 @@ Info "Comprobacion del entorno (check_setup.py):"
 # no se sube a git). Para usar MIA NO hace falta rellenar nada: se crea vacio
 # a partir de la plantilla y solo importa si quieres una clave de PubMed.
 # ----------------------------------------------------------------------------
-Step 4 "Archivo .env (opcional, se crea vacio)"
+Step 4 ".env file (optional, created empty)"
 $envFile = Join-Path $root ".env"
 if (Test-Path $envFile) {
-    Ok ".env ya existe; no lo toco."
+    Ok ".env already exists; leaving it untouched."
 } else {
     Copy-Item (Join-Path $root ".env.example") $envFile
-    Ok ".env creado a partir de .env.example (no hace falta editarlo para empezar)."
+    Ok ".env created from .env.example (no need to edit it to get started)."
 }
 
 # ----------------------------------------------------------------------------
@@ -214,7 +214,7 @@ if (Test-Path $envFile) {
 # Tres situaciones: responde (bien) / instalado pero parado (lo arrancamos) /
 # no instalado (enlace y paramos: lo instala el usuario).
 # ----------------------------------------------------------------------------
-Step 5 "Ollama (servidor local del modelo)"
+Step 5 "Ollama (local model server)"
 $ollamaHost = Run-Py "from src import status; print(status.ollama_host())"
 
 function Test-Ollama {
@@ -226,18 +226,18 @@ function Test-Ollama {
 
 $tags = Test-Ollama
 if ($null -ne $tags) {
-    Ok "Ollama responde en $ollamaHost"
+    Ok "Ollama is responding at $ollamaHost"
 } else {
     $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
     if ($ollamaCmd) {
-        Todo "Ollama esta instalado pero no responde. Lo arranco en segundo plano..."
+        Todo "Ollama is installed but not responding. Starting it in the background..."
         Start-Process -FilePath $ollamaCmd.Source -ArgumentList "serve" -WindowStyle Hidden
         for ($i = 0; $i -lt 10 -and $null -eq $tags; $i++) { Start-Sleep -Seconds 2; $tags = Test-Ollama }
-        if ($null -eq $tags) { Stop-Setup "Ollama no arranca." "Abrelo a mano (icono de Ollama o 'ollama serve' en otra terminal) y vuelve a ejecutar setup.bat." }
-        Ok "Ollama en marcha en $ollamaHost"
+        if ($null -eq $tags) { Stop-Setup "Ollama does not start." "Open it manually (Ollama icon or 'ollama serve' in another terminal) and run setup.bat again." }
+        Ok "Ollama running at $ollamaHost"
     } else {
-        Stop-Setup "Ollama no esta instalado." `
-                   "Descargalo de https://ollama.com/download e instalalo (siguiente, siguiente). Se queda en la bandeja del sistema."
+        Stop-Setup "Ollama is not installed." `
+                   "Download it from https://ollama.com/download and install it (next, next). It stays in the system tray."
     }
 }
 
@@ -246,20 +246,20 @@ if ($null -ne $tags) {
 # verdad) para no tenerlo escrito dos veces. Solo este modelo es necesario para
 # el producto; los de evaluacion no se descargan aqui.
 # ----------------------------------------------------------------------------
-Step 6 "Modelo biomedico (OpenBioLLM 8B)"
+Step 6 "Biomedical model (OpenBioLLM 8B)"
 $model = Run-Py "import config; print(config.LLM_MODEL)"
 if ($tags -contains $model) {
-    Ok "Modelo $model ya descargado."
+    Ok "Model $model already downloaded."
 } else {
-    Todo "Falta el modelo $model"
-    Info "Ocupa unos 4,9 GB; entre 10 y 30 minutos segun tu conexion. Se guarda en la carpeta de Ollama."
-    if (Ask-Continue "Descargar ahora con 'ollama pull'?") {
+    Todo "Model $model is missing"
+    Info "It takes about 4.9 GB; 10 to 30 minutes depending on your connection. It is stored in the Ollama folder."
+    if (Ask-Continue "Download now with 'ollama pull'?") {
         & ollama pull $model
-        if ($LASTEXITCODE -ne 0) { Stop-Setup "'ollama pull' termino con error." "Comprueba la conexion y vuelve a ejecutar setup.bat." }
+        if ($LASTEXITCODE -ne 0) { Stop-Setup "'ollama pull' finished with an error." "Check your connection and run setup.bat again." }
         $tags = Test-Ollama
-        if ($tags -contains $model) { Ok "Modelo descargado." } else { Stop-Setup "Ollama no lista el modelo tras descargarlo." "Ejecuta 'ollama list' para ver que ha pasado." }
+        if ($tags -contains $model) { Ok "Model downloaded." } else { Stop-Setup "Ollama does not list the model after downloading it." "Run 'ollama list' to see what happened." }
     } else {
-        Warn "Sin el modelo MIA no puede responder. Podras descargarlo luego con:  ollama pull $model"
+        Warn "Without the model MIA cannot answer. You can download it later with:  ollama pull $model"
     }
 }
 
@@ -268,10 +268,10 @@ if ($tags -contains $model) {
 # Se descarga de HuggingFace la primera vez que se usa; si no lo hacemos
 # aqui, la primera pregunta en la app tardaria minutos sin explicacion.
 # ----------------------------------------------------------------------------
-Step 7 "Embeddings biomedicos (MedCPT)"
+Step 7 "Biomedical embeddings (MedCPT)"
 $backend = Run-Py "import config; print(config.EMBEDDING_BACKEND)"
 if ($backend -ne "medcpt") {
-    Ok "Backend de embeddings '$backend': se descargara solo al primer uso."
+    Ok "Embedding backend '$backend': it will download itself on first use."
 } else {
     $cached = Run-Py @"
 import os, config
@@ -282,16 +282,16 @@ print('yes' if ok else 'no'); print(c)
 "@
     $cachedLines = $cached -split "`r?`n"
     if ($cachedLines[0] -eq "yes") {
-        Ok "MedCPT ya esta en la cache de HuggingFace ($($cachedLines[1]))."
+        Ok "MedCPT is already in the HuggingFace cache ($($cachedLines[1]))."
     } else {
-        Todo "MedCPT no esta descargado."
-        Info "Son dos modelos de NCBI, unos 840 MB en total, desde huggingface.co. Quedan en $($cachedLines[1])"
-        if (Ask-Continue "Descargar ahora?") {
+        Todo "MedCPT is not downloaded."
+        Info "Two NCBI models, about 840 MB in total, from huggingface.co. They are stored in $($cachedLines[1])"
+        if (Ask-Continue "Download now?") {
             $dim = & $venvPy -c "from src import embeddings; v = embeddings.embed_query('atopic dermatitis'); print(len(v))"
-            if ($LASTEXITCODE -ne 0) { Stop-Setup "La descarga de MedCPT fallo." "Comprueba la conexion y vuelve a ejecutar setup.bat." }
-            Ok "MedCPT descargado y probado (vector de $("$dim".Trim().Split("`n")[-1]) dimensiones)."
+            if ($LASTEXITCODE -ne 0) { Stop-Setup "The MedCPT download failed." "Check your connection and run setup.bat again." }
+            Ok "MedCPT downloaded and tested (vector of $("$dim".Trim().Split("`n")[-1]) dimensions)."
         } else {
-            Warn "Se descargara sola en la primera pregunta (esa respuesta tardara unos minutos mas)."
+            Warn "It will download itself on the first question (that answer will take a few extra minutes)."
         }
     }
 }
@@ -301,18 +301,18 @@ print('yes' if ok else 'no'); print(c)
 # la enfermedad en la app (pestana "Build corpus"), que descarga de PubMed y
 # ClinicalTrials.gov y lo indexa. Aqui solo informamos de como esta.
 # ----------------------------------------------------------------------------
-Step 8 "Corpus de evidencia (lo eliges en la app)"
+Step 8 "Evidence corpus (you choose it in the app)"
 $corpus = Run-Py "from src import status; import config; s = status.corpus_status(); print(s['chunks']); print(config.DISEASE)"
 $corpusLines = $corpus -split "`r?`n"
 $chunks = [int]$corpusLines[0]
 if ($chunks -gt 0) {
-    Ok "Perfil activo '$($corpusLines[1])' con $chunks fragmentos indexados."
+    Ok "Active profile '$($corpusLines[1])' with $chunks chunks indexed."
 } else {
-    Todo "La base vectorial esta vacia (es lo normal en una instalacion nueva)."
-    Info "Al abrir MIA, ve a la pestana 'Build corpus', escribe la enfermedad, pulsa"
-    Info "'Suggest drugs', elige los farmacos y construye el corpus (10-60 min)."
+    Todo "The vector database is empty (normal on a fresh install)."
+    Info "When you open MIA, go to the 'Build corpus' tab, type the disease, click"
+    Info "'Suggest drugs', pick the drugs and build the corpus (10-60 min)."
     $profiles = Get-ChildItem (Join-Path $root "domains") -Filter "*.json" | ForEach-Object { $_.BaseName }
-    if ($profiles) { Info "Perfiles de ejemplo que vienen en el repo: $($profiles -join ', ')" }
+    if ($profiles) { Info "Example profiles shipped with the repo: $($profiles -join ', ')" }
 }
 
 # ----------------------------------------------------------------------------
@@ -320,22 +320,22 @@ if ($chunks -gt 0) {
 # ----------------------------------------------------------------------------
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor DarkCyan
-Write-Host "  Resumen"                                          -ForegroundColor Cyan
+Write-Host "  Summary"                                          -ForegroundColor Cyan
 Write-Host "==================================================" -ForegroundColor DarkCyan
 $tags = Test-Ollama
 $modelOk = ($null -ne $tags) -and ($tags -contains $model)
-Ok   "Python + entorno virtual + dependencias"
-Ok   "Archivo .env"
-if ($null -ne $tags) { Ok "Ollama en marcha" } else { Todo "Ollama parado" }
-if ($modelOk)        { Ok "Modelo biomedico $model" } else { Todo "Modelo biomedico (ollama pull $model)" }
-if ($chunks -gt 0)   { Ok "Corpus: $chunks fragmentos" } else { Todo "Corpus: vacio -> pestana Build corpus en la app" }
+Ok   "Python + virtual environment + dependencies"
+Ok   ".env file"
+if ($null -ne $tags) { Ok "Ollama running" } else { Todo "Ollama stopped" }
+if ($modelOk)        { Ok "Biomedical model $model" } else { Todo "Biomedical model (ollama pull $model)" }
+if ($chunks -gt 0)   { Ok "Corpus: $chunks chunks" } else { Todo "Corpus: empty -> Build corpus tab in the app" }
 Write-Host ""
-Info "Para arrancar MIA a partir de ahora: doble clic en run.bat"
+Info "To start MIA from now on: double-click run.bat"
 Write-Host ""
 # En modo -Yes (pruebas / automatizacion) NO arrancamos la app: run.ps1 se queda
 # esperando con el servidor abierto y bloquearia el proceso que nos llamo.
 if ($Yes) { exit 0 }
-if (Ask-Continue "Arrancar MIA ahora?") {
+if (Ask-Continue "Start MIA now?") {
     & (Join-Path $root "run.ps1")
 } else {
     Pause-Exit 0

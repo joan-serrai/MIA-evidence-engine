@@ -48,7 +48,7 @@ def _st():
     global _ST_MODEL
     if _ST_MODEL is None:
         from sentence_transformers import SentenceTransformer
-        print(f"Cargando embeddings (sentence-transformers): {config.EMBEDDING_MODEL} ...")
+        print(f"Loading embeddings (sentence-transformers): {config.EMBEDDING_MODEL} ...")
         _ST_MODEL = SentenceTransformer(config.EMBEDDING_MODEL)
     return _ST_MODEL
 
@@ -63,7 +63,7 @@ def _medcpt():
     if _MEDCPT is None:
         import torch
         from transformers import AutoTokenizer, AutoModel
-        print("Cargando embeddings (MedCPT): query + article encoders ...")
+        print("Loading embeddings (MedCPT): query + article encoders ...")
         q_tok = AutoTokenizer.from_pretrained(config.MEDCPT_QUERY_MODEL)
         q_mod = AutoModel.from_pretrained(config.MEDCPT_QUERY_MODEL).eval()
         a_tok = AutoTokenizer.from_pretrained(config.MEDCPT_ARTICLE_MODEL)
@@ -181,10 +181,10 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    print(f"Backend activo: {config.EMBEDDING_BACKEND}")
+    print(f"Active backend: {config.EMBEDDING_BACKEND}")
     q = embed_query("efficacy of dupilumab in atopic dermatitis")
     d = embed_documents(["Dupilumab significantly improved EASI-75 in adults with "
                          "moderate-to-severe atopic dermatitis."])[0]
-    print(f"dim pregunta: {len(q)}  ·  dim documento: {len(d)}")
+    print(f"query dim: {len(q)}  ·  document dim: {len(d)}")
     coseno = sum(a * b for a, b in zip(q, d))  # ambos ya normalizados
-    print(f"similitud (coseno) pregunta↔documento relevante: {coseno:.3f}")
+    print(f"similarity (cosine) query↔relevant document: {coseno:.3f}")

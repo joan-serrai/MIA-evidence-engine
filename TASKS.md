@@ -22,10 +22,14 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
-- **Probar `setup.bat` como usuario nuevo (el autor).** Decidido el 8-sep-2026: antes
-  de publicar, el autor repite la instalación desde cero (clon sin `.venv`, corpus
-  vacío, construir un corpus desde la app). Lo que se atasque ahí es lo que hay que
-  arreglar primero. Después: capturas de pantalla de cada paso para el README.
+- **Segunda prueba de usuario nuevo, ahora desde la rama `main`.** La primera
+  (8-sep-2026, con `setup.bat`) funcionó y produjo cuatro cambios (MIA genérica,
+  sin perfiles preinstalados, Build corpus primero, todo en inglés). Falta repetirla
+  desde `main`, construir un corpus desde la app y preguntar. Después: capturas de
+  pantalla de cada paso para el README y elegir licencia (recomendada MIT).
+- **Mantener `main` al día.** Cada cambio de producto se hace en `master` y se pasa a
+  `main` con `git merge master` (los archivos borrados en `main` no vuelven, salvo que
+  se toquen en `master`: entonces `git rm` de nuevo). Anotar aquí si el flujo pesa.
 - **Instalación en Linux/Mac.** `setup.ps1` es solo Windows a propósito (no hay dónde
   probar otro sistema). Cuando alguien lo pida: `setup.sh` con los mismos ocho pasos,
   o al menos la lista manual del README verificada en ese sistema.

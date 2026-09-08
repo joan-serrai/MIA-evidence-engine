@@ -255,7 +255,7 @@ def condense_question(question, history, max_turns=4):
                 and "standalone question" not in salida.lower()):
             return salida
     except Exception as e:
-        print(f"   [aviso] condensación de la pregunta falló: {e}")
+        print(f"   [warning] question condensation failed: {e}")
     return question
 
 
@@ -976,22 +976,22 @@ def answer(question, top_k=None, history=None):
 if __name__ == "__main__":
     pregunta = " ".join(sys.argv[1:]) or "What is the efficacy of dupilumab in atopic dermatitis?"
     print("=" * 60)
-    print(f"Pregunta: {pregunta}")
+    print(f"Question: {pregunta}")
     # Intención detectada por el router → confirma qué ENFOQUE aplicó al prompt.
-    print(f"Intención detectada: {detect_intent(pregunta)}")
+    print(f"Detected intent: {detect_intent(pregunta)}")
     print("=" * 60)
     resultado = answer(pregunta)
-    print("\n--- RESPUESTA ---\n")
+    print("\n--- ANSWER ---\n")
     print(resultado["answer"])
-    print(f"\n--- FUENTES (evidencia local: {'sí' if resultado['has_evidence'] else 'débil'}) ---")
+    print(f"\n--- SOURCES (local evidence: {'yes' if resultado['has_evidence'] else 'weak'}) ---")
     for f in resultado["sources"]:
         # Acceso al texto completo: "abierto" o "SOLO-RESUMEN" (posible pago).
         # Usamos texto (no emojis) para que la consola de Windows no lo rompa.
         acc = f.get("access") or "open"
-        etiqueta_acc = "SOLO-RESUMEN (posible pago)" if acc == "abstract_only" else "abierto"
+        etiqueta_acc = "ABSTRACT-ONLY (possibly paywalled)" if acc == "abstract_only" else "open"
         print(f"  [Doc {f['n']}] {f['source']}:{f['doc_id']}  (sim {f['similarity']}, "
-              f"{f['n_fragments']} frag, acceso: {etiqueta_acc})  {f['url']}")
+              f"{f['n_fragments']} frag, access: {etiqueta_acc})  {f['url']}")
     if resultado.get("related"):
-        print(chr(10) + "--- LECTURA RELACIONADA (no citada) ---")
+        print(chr(10) + "--- RELATED READING (not cited) ---")
         for r in resultado["related"]:
             print(f"  · {r['source']}:{r['doc_id']}  (sim {r['similarity']})  {(r['title'] or '')[:90]}")

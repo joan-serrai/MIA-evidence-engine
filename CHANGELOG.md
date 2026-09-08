@@ -25,6 +25,48 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-08 (tarde) · MIA genérica al instalar, todo lo visible en inglés y rama pública `main`
+
+El autor hizo la prueba de usuario nuevo con `setup.bat` (funcionó de punta a punta) y
+pidió cuatro cosas: que MIA recién instalada **no presuponga la dermatitis atópica**; que
+**no aparezcan los perfiles** de su ordenador (aparecían porque `domains/*.json` va en el
+repo, no por ser su equipo); que un usuario nuevo **entre directamente en Build corpus**;
+y que **todo lo que ve el usuario esté en inglés**, setup incluido. Además, quitar la
+comparativa Centivence de lo publicado.
+
+### Añadido — estado "sin perfil" (`config.NO_DOMAIN`)
+`resolve_active_domain` devuelve `NO_DOMAIN` cuando no existe ni el perfil por defecto, y
+`load_domain(NO_DOMAIN)` da un perfil vacío con las mismas claves (DISEASE `""`, listas
+vacías): el resto del código sigue funcionando sin comprobaciones especiales. La app lo
+usa como señal: cabecera sin patología, bienvenida genérica sin preguntas de ejemplo,
+selector de perfil sustituido por "No profiles yet", y **la pestaña Build corpus pasa a
+ser la primera** mientras no haya corpus (Streamlit abre siempre la primera; no permite
+elegirla por código). `status.fix_hints` distingue "instalación nueva" de "perfil sin
+corpus". `corpus_tab` solo protege el perfil del TFM si existe en el equipo: en una
+instalación nueva "Atopic dermatitis" es un nombre válido.
+
+### Cambiado — inglés en todo lo que imprime el sistema
+`setup.ps1`, `run.ps1`, `check_setup.py`, `build_corpus.py`, `run_phase1.py`,
+`suggest_drugs.py`, `export_corpus_manifest.py` y la tubería (`ingestion`, `processing`,
+`embeddings`, `rag`, `scout`, `status`, `report`, `outcomes`): unas 90 cadenas. La salida
+de la tubería se ve en vivo en la pestaña Build corpus, por eso cuenta. **Los comentarios
+del código siguen en español** (son didácticos, del autor). Mensajes de error de
+`config.load_domain` también en inglés.
+
+### Añadido — rama pública `main`
+Creada a partir de esta rama quitando lo que no es producto: página de comparación,
+`src/compare.py`, `verdict.py`, `triplet_agent.py`, `evaluation.py`, `evaluate_*.py`,
+`index_openai.py`, resultados de evaluación y censos del corpus del TFM, perfiles
+(`domains/*.json` → solo `domains/examples/atopic_dermatitis.json`), scripts de
+mantenimiento del corpus antiguo, documentos internos en español (CHANGELOG, TASKS,
+CLAUDE.md, memoria, guía) y la dependencia `openai`. README de producto en inglés,
+`.env.example`, `requirements.txt` y `config.toml` reescritos en inglés. `tests/test_pure.py`
+busca el perfil de ejemplo en `domains/` o en `domains/examples/` para valer en ambas ramas.
+**`master` conserva todo** para el TFM; los cambios de producto se hacen aquí y se pasan a
+`main` con `git merge`/`cherry-pick`.
+
+---
+
 ## 2026-09-08 · Instalación guiada (`setup.ps1`) y corpus vacío que envía a *Build corpus*
 
 Origen: alguien preguntó al autor si el repositorio traería *"algún flujo de automatización

@@ -348,6 +348,6 @@ if __name__ == "__main__":
     out = build_report_html("What is the efficacy of dupilumab?", demo)
     destino = config.DATA_DIR / "_report_demo.html"
     destino.write_text(out, encoding="utf-8")
-    print(f"[OK] informe generado: {len(out)} chars -> {destino}")
+    print(f"[OK] report generated: {len(out)} chars -> {destino}")
     for marca in ("Cited sources", "Key figures", "Retrieval details", "narrative form"):
-        print(f"  contiene '{marca}': {marca in out}")
+        print(f"  contains '{marca}': {marca in out}")

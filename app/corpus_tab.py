@@ -254,7 +254,10 @@ def render(on_built=None):
         if not drugs:
             problemas.append("at least one drug")
         slug = config.slugify(disease)
-        if slug == config.DEFAULT_DOMAIN:
+        # El perfil original del TFM (con sus colecciones "legacy") se protege de
+        # cambios desde la app SOLO si existe en este equipo; en una instalación
+        # nueva no hay nada que proteger y "Atopic dermatitis" es un nombre válido.
+        if slug == config.DEFAULT_DOMAIN and config.domain_path(slug).exists():
             problemas.append(f"a disease other than the built-in `{config.DEFAULT_DOMAIN}` profile")
         if slug in config.list_domains() and slug != config.DEFAULT_DOMAIN:
             st.info(f"Profile `{slug}` already exists: it will be **updated** and its corpus "

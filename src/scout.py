@@ -121,7 +121,7 @@ def _extract_search_term(question):
         if term and len(term.split()) <= 6:
             return term
     except Exception as e:
-        print(f"   [aviso] extracción LLM falló: {e}")
+        print(f"   [warning] LLM extraction failed: {e}")
     return _keyword_fallback(question)
 
 
@@ -142,13 +142,13 @@ def run_scout(question, max_results=20):
     # repite como texto libre.
     libre = f"{term} AND {config.DISEASE_QUERY}"
     acotada = f"{term} AND {ingestion.pubmed_disease_clause(config.DISEASE_QUERY)}"
-    print(f"   [scout] término de búsqueda: '{acotada}'")
+    print(f"   [scout] search term: '{acotada}'")
 
     ct_path = ingestion.search_clinical_trials(term, max_results, cond=config.DISEASE_QUERY)
     pm_path = ingestion.search_pubmed(acotada, max_results, fallback_term=libre)
 
     nuevos = processing.index_new_bronze([ct_path, pm_path], term)
-    print(f"   [scout] chunks nuevos indexados: {nuevos}")
+    print(f"   [scout] new chunks indexed: {nuevos}")
 
     return {
         "term": term,
@@ -194,7 +194,7 @@ def answer_with_scout(question, max_results=20, history=None):
         res["condensed_question"] = condensed
         return res
 
-    print("→ Evidencia local insuficiente; activando el agente Scout...")
+    print("→ Insufficient local evidence; activating the Scout agent...")
     resumen = run_scout(pregunta, max_results)
 
     res = rag.answer(pregunta)              # reintento con la base ya ampliada
@@ -211,13 +211,13 @@ def answer_with_scout(question, max_results=20, history=None):
 if __name__ == "__main__":
     pregunta = " ".join(sys.argv[1:]) or "What is the efficacy of delgocitinib in atopic dermatitis?"
     print("=" * 60)
-    print(f"Pregunta: {pregunta}")
+    print(f"Question: {pregunta}")
     print("=" * 60)
     resultado = answer_with_scout(pregunta)
-    print("\n--- RESPUESTA ---\n")
+    print("\n--- ANSWER ---\n")
     print(resultado["answer"])
-    print(f"\n¿Usó Scout?: {resultado['used_scout']}")
-    print("\n--- FUENTES ---")
+    print(f"\nUsed Scout?: {resultado['used_scout']}")
+    print("\n--- SOURCES ---")
     for f in resultado["sources"]:
         print(f"  [Doc {f['n']}] {f['source']}:{f['doc_id']}  (sim {f['similarity']}, "
               f"{f['n_fragments']} frag)  {f['url']}")

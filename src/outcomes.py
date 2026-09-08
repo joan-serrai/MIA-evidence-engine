@@ -214,5 +214,5 @@ if __name__ == "__main__":
         "The pooled risk ratio was 1.42 (95% CI 1.10-1.83) with I2 = 77.5%."
     )
     for p in extract_outcomes(ejemplo, doc_n=1, max_points=20):
-        semana = f" (sem {p['week']})" if p["week"] else ""
+        semana = f" (week {p['week']})" if p["week"] else ""
         print(f"  [Doc {p['doc_n']}] [{p['kind']:8}] {p['metric']}{semana}: {p['value']}%")

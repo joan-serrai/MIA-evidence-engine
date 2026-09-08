@@ -14,24 +14,24 @@ Write-Host "==================================================" -ForegroundColor
 
 # 1) Entorno virtual
 if (-not (Test-Path $py)) {
-    Write-Host "[X] No encuentro el entorno virtual (.venv)." -ForegroundColor Red
-    Write-Host "    Parece la primera vez en este equipo. Ejecuta la instalacion guiada:" -ForegroundColor Yellow
-    Write-Host "      doble clic en setup.bat" -ForegroundColor Yellow
-    Write-Host "    (crea el entorno, instala las dependencias y descarga los modelos, preguntando antes)" -ForegroundColor DarkYellow
-    Read-Host "`nPulsa Enter para salir"
+    Write-Host "[X] Virtual environment (.venv) not found." -ForegroundColor Red
+    Write-Host "    Looks like the first run on this machine. Run the guided setup:" -ForegroundColor Yellow
+    Write-Host "      double-click setup.bat" -ForegroundColor Yellow
+    Write-Host "    (creates the environment, installs the dependencies and downloads the models, asking first)" -ForegroundColor DarkYellow
+    Read-Host "`nPress Enter to exit"
     exit 1
 }
-Write-Host "[OK] Entorno virtual encontrado." -ForegroundColor Green
+Write-Host "[OK] Virtual environment found." -ForegroundColor Green
 
 # 2) Ollama en marcha (necesario para responder). Si no, avisamos pero seguimos:
 #    la propia app muestra el aviso con la solucion.
 try {
     $null = Invoke-WebRequest -Uri "http://localhost:11434/api/tags" -UseBasicParsing -TimeoutSec 3
-    Write-Host "[OK] Ollama responde en localhost:11434." -ForegroundColor Green
+    Write-Host "[OK] Ollama is responding on localhost:11434." -ForegroundColor Green
 } catch {
-    Write-Host "[!] Ollama no responde. Arrancalo en OTRA terminal con:" -ForegroundColor Yellow
+    Write-Host "[!] Ollama is not responding. Start it in ANOTHER terminal with:" -ForegroundColor Yellow
     Write-Host "      ollama serve" -ForegroundColor Yellow
-    Write-Host "    (La app arrancara igual y te dira que falta.)" -ForegroundColor DarkYellow
+    Write-Host "    (The app will start anyway and tell you what is missing.)" -ForegroundColor DarkYellow
 }
 
 # 3) Arrancar la app en modo headless (asi Streamlit NO pide el email de primer
@@ -39,7 +39,7 @@ try {
 #    el servidor responda. La ventana se queda viva hasta que se cierra el server.
 $appPath = Join-Path $root "app\streamlit_app.py"
 Write-Host ""
-Write-Host "Arrancando MIA en http://localhost:8501 ..." -ForegroundColor Cyan
+Write-Host "Starting MIA at http://localhost:8501 ..." -ForegroundColor Cyan
 
 # -ArgumentList como UNA cadena y con la ruta ENTRE COMILLAS: la ruta del proyecto
 # tiene espacios ("PROYECTO CAPSTONE AI"), y un array sin comillas la partiria.
@@ -56,10 +56,10 @@ for ($i = 0; $i -lt 20; $i++) {
     } catch { }
 }
 if ($listo) {
-    Write-Host "[OK] MIA esta lista. Abriendo el navegador..." -ForegroundColor Green
+    Write-Host "[OK] MIA is ready. Opening the browser..." -ForegroundColor Green
     Start-Process "http://localhost:8501"
 } else {
-    Write-Host "[!] El servidor tarda mas de lo normal; abre http://localhost:8501 a mano." -ForegroundColor Yellow
+    Write-Host "[!] The server is taking longer than usual; open http://localhost:8501 manually." -ForegroundColor Yellow
 }
-Write-Host "(Cierra esta ventana o pulsa Ctrl+C para detener MIA.)" -ForegroundColor DarkGray
+Write-Host "(Close this window or press Ctrl+C to stop MIA.)" -ForegroundColor DarkGray
 Wait-Process -Id $proc.Id

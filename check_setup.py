@@ -22,7 +22,7 @@ def check_python():
     v = sys.version_info
     ok = (v.major, v.minor) >= (3, 11)
     print(f"[{'OK' if ok else '!!'}] Python {v.major}.{v.minor}.{v.micro}"
-          + ("" if ok else "  → se recomienda Python 3.11 o superior"))
+          + ("" if ok else "  → Python 3.11 or higher is recommended"))
     return ok
 
 
@@ -32,7 +32,7 @@ def check_folders():
     for rel in needed:
         exists = (BASE_DIR / rel).exists()
         all_ok = all_ok and exists
-        print(f"[{'OK' if exists else '!!'}] carpeta {rel}")
+        print(f"[{'OK' if exists else '!!'}] folder {rel}")
     return all_ok
 
 
@@ -44,16 +44,16 @@ def check_packages():
     for p in paquetes:
         try:
             __import__(p)
-            print(f"[OK] paquete {p}")
+            print(f"[OK] package {p}")
         except ImportError:
             faltan.append(p)
-            print(f"[..] paquete {p}  → aún no instalado")
+            print(f"[..] package {p}  → not installed yet")
     return faltan
 
 
 if __name__ == "__main__":
     print("=" * 55)
-    print(" MIA · comprobación de entorno")
+    print(" MIA · environment check")
     print("=" * 55)
     py_ok = check_python()
     print("-" * 55)
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     print("=" * 55)
 
     if faltan:
-        print(f"\nSiguiente paso: instala las dependencias que faltan con:")
+        print(f"\nNext step: install the missing dependencies with:")
         print("   pip install -r requirements.txt")
     elif py_ok and folders_ok:
-        print("\n¡Entorno listo! 🎉  Podemos empezar por la Fase 1 (ingesta de datos).")
+        print("\nEnvironment ready! 🎉  Next: build a corpus in the app (Build corpus tab).")
     print()

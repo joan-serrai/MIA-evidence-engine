@@ -1,31 +1,21 @@
-"""
-export_corpus_manifest.py — CENSO REPRODUCIBLE del corpus indexado.
+"""export_corpus_manifest.py — REPRODUCIBLE CENSUS of the indexed corpus.
 
-¿Por qué existe este script?
-----------------------------
-El corpus de MIA se construyó de DOS maneras:
+Why does this script exist?
+---------------------------
+A corpus can be built in more than one way (automatic download by drug, or a
+manual import of a PubMed export), and only the first is reproducible on its
+own. This script closes that gap: it reads the ChromaDB collection and writes
+the census of EVERYTHING that is indexed (one record per document, with its
+PMID/NCT, title and link). With that census anyone can fetch the same documents
+again from PubMed/ClinicalTrials.gov even if an original file is lost.
 
-  1. `run_phase1.py`  → descarga a `data/bronze` por (enfermedad + fármaco).
-     Esto SÍ es reproducible: se vuelve a ejecutar y se baja lo mismo.
+Outputs (in `data/`):
+    corpus_manifest.csv  — one document per row: doc_id, source, title, URL,
+                           drugs, access, number of chunks and whether it is in bronze.
+    corpus_pmids.txt     — the PMIDs only, one per line. Paste them as they are
+                           into the PubMed search box to download them again.
 
-  2. `ingest_desktop_set.py --file "<ruta.txt>"` → importó un export manual de
-     PubMed ("Abstract (text)") que vivía en el escritorio. Ese .txt NO está en
-     el repositorio, así que esa mitad del corpus NO era reproducible: si algún
-     día hubiera que reindexar desde cero, faltaría.
-
-Este script cierra ese agujero SIN necesitar el .txt original: lee la colección
-de ChromaDB y escribe el censo de TODO lo que hay indexado (un registro por
-documento, con su PMID/NCT, título y enlace). Con ese censo, cualquiera puede
-recuperar los mismos documentos desde PubMed/ClinicalTrials aunque el fichero
-original se haya perdido.
-
-Salidas (en `data/`):
-    corpus_manifest.csv  — un documento por fila: doc_id, fuente, título, URL,
-                           fármacos, acceso, nº de chunks y si está en bronze.
-    corpus_pmids.txt     — solo los PMID, uno por línea. Se pueden pegar tal
-                           cual en el buscador de PubMed para re-descargarlos.
-
-Uso:
+Usage:
     ./.venv/Scripts/python.exe export_corpus_manifest.py
     ./.venv/Scripts/python.exe export_corpus_manifest.py --collection mia_evidence_openai
 """
@@ -76,7 +66,7 @@ def exportar(nombre_coleccion):
     cliente = chromadb.PersistentClient(path=str(config.CHROMA_DIR))
     coleccion = cliente.get_collection(nombre_coleccion)
     total_chunks = coleccion.count()
-    print(f"Coleccion '{nombre_coleccion}': {total_chunks} chunks indexados.")
+    print(f"Collection '{nombre_coleccion}': {total_chunks} chunks indexed.")
 
     # Traemos SOLO los metadatos (no los vectores ni el texto): mucho más ligero.
     # ChromaDB pagina por lotes para no cargar 9.000 registros de golpe.
@@ -128,20 +118,20 @@ def exportar(nombre_coleccion):
     n_externos = len(filas) - n_bronze
     print()
     print("=" * 62)
-    print(f"  Documentos unicos      : {len(filas)}")
-    print(f"  Chunks totales         : {total_chunks}")
-    print(f"  - de PubMed            : {sum(1 for d in filas if d['source'] == 'pubmed')}")
-    print(f"  - de ClinicalTrials    : {sum(1 for d in filas if d['source'] == 'clinicaltrials')}")
-    print(f"  Regenerables (bronze)  : {n_bronze}")
-    print(f"  Solo en el indice      : {n_externos}   <- venian del desktop set")
+    print(f"  Unique documents       : {len(filas)}")
+    print(f"  Total chunks           : {total_chunks}")
+    print(f"  - from PubMed          : {sum(1 for d in filas if d['source'] == 'pubmed')}")
+    print(f"  - from ClinicalTrials  : {sum(1 for d in filas if d['source'] == 'clinicaltrials')}")
+    print(f"  Regenerable (bronze)   : {n_bronze}")
+    print(f"  Only in the index      : {n_externos}   <- came from the desktop set")
     print("=" * 62)
-    print(f"Escrito: {salida_csv}")
-    print(f"Escrito: {salida_pmids}  ({len(pmids)} PMID)")
+    print(f"Written: {salida_csv}")
+    print(f"Written: {salida_pmids}  ({len(pmids)} PMIDs)")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--collection", default=config.CHROMA_COLLECTION,
-                        help="Nombre de la coleccion de ChromaDB a censar.")
+                        help="Name of the ChromaDB collection to inventory.")
     args = parser.parse_args()
     exportar(args.collection)

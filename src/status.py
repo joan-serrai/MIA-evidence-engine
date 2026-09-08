@@ -86,8 +86,11 @@ def fix_hints(status):
         # instalación nueva (setup.ps1) la base vectorial está VACÍA a propósito
         # y el usuario elige la enfermedad en la pestaña "Build corpus". Antes
         # el aviso mandaba a la terminal (run_phase1.py), que contradecía eso.
-        hints.append(f"No corpus yet for the profile '{config.DISEASE}'. "
-                     "Build one in the **Build corpus** tab: type the disease, "
+        # Sin NINGÚN perfil (config.DISEASE vacío) el mensaje es el de bienvenida;
+        # con un perfil sin corpus, se nombra el perfil.
+        what = (f"No corpus yet for the profile '{config.DISEASE}'."
+                if config.DISEASE else "MIA has no corpus yet (fresh install).")
+        hints.append(f"{what} Build one in the **Build corpus** tab: type a disease, "
                      "press *Suggest drugs*, pick the drugs and index (10-60 min). "
                      "Or, from a terminal:  python build_corpus.py --help")
     return hints
@@ -99,9 +102,9 @@ if __name__ == "__main__":
     except Exception:
         pass
     s = system_status()
-    print("Ollama:", "OK" if s["ollama"]["up"] else "CAÍDO", "·", s["ollama"]["host"])
-    print("Modelos:", {m: ("OK" if ok else "FALTA") for m, ok in s["models"].items()})
-    print("Corpus:", s["corpus"]["chunks"], "fragmentos ·", s["corpus"]["collection"])
-    print("LISTO PARA PRODUCCIÓN:", s["ready"])
+    print("Ollama:", "OK" if s["ollama"]["up"] else "DOWN", "·", s["ollama"]["host"])
+    print("Models:", {m: ("OK" if ok else "MISSING") for m, ok in s["models"].items()})
+    print("Corpus:", s["corpus"]["chunks"], "chunks ·", s["corpus"]["collection"])
+    print("READY FOR PRODUCTION:", s["ready"])
     for h in fix_hints(s):
         print("  →", h)

@@ -25,26 +25,26 @@ except Exception:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fase 1 de MIA: ingesta + procesado + indexado")
+    parser = argparse.ArgumentParser(description="MIA Phase 1: ingestion + processing + indexing")
     parser.add_argument("--max", type=int, default=50,
-                        help="máx. resultados por fármaco y fuente (def: 50; 0 = SIN TOPE, todo lo que haya)")
+                        help="max. results per drug and source (default: 50; 0 = NO LIMIT, everything available)")
     parser.add_argument("--domain", default=None,
-                        help="perfil de dominio (domains/<slug>.json); por defecto el activo")
+                        help="domain profile (domains/<slug>.json); defaults to the active one")
     args = parser.parse_args()
     if args.max == 0:
         args.max = None   # sin tope
     if args.domain:
         config.activate_domain(args.domain)
-    print(f"Dominio activo: {config.DOMAIN_SLUG} — {config.DISEASE} "
-          f"({len(config.DRUGS)} fármacos) → colección {config.CHROMA_COLLECTION}")
+    print(f"Active domain: {config.DOMAIN_SLUG} — {config.DISEASE} "
+          f"({len(config.DRUGS)} drugs) → collection {config.CHROMA_COLLECTION}")
 
-    print("\n########## FASE 1 · PASO 1/2: INGESTA ##########\n")
+    print("\n########## PHASE 1 · STEP 1/2: INGESTION ##########\n")
     ingestion.run(max_results=args.max)
 
-    print("\n########## FASE 1 · PASO 2/2: PROCESADO + INDEXADO ##########\n")
+    print("\n########## PHASE 1 · STEP 2/2: PROCESSING + INDEXING ##########\n")
     processing.run()
 
-    print("\n✅ Fase 1 completada. La base vectorial está lista para la Fase 2 (RAG).")
+    print("\n✅ Phase 1 complete. The vector database is ready for Phase 2 (RAG).")
 
 
 if __name__ == "__main__":

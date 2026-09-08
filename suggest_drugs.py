@@ -1,19 +1,19 @@
-"""
-suggest_drugs.py — ¿Qué fármacos se estudian para una enfermedad? (ayuda previa a build_corpus)
+"""suggest_drugs.py — Which drugs are studied for a disease? (a helper before build_corpus)
 
-Antes de crear un perfil de dominio hay que decidir QUÉ fármacos descargar. Si
-no conoces el área, este script lo responde con datos: consulta el registro
-oficial ClinicalTrials.gov, cuenta en cuántos ensayos aparece cada intervención
-farmacológica para esa enfermedad y te enseña las más estudiadas, con su fase
-más alta. No usa el LLM ni descarga nada al corpus: solo mira y propone.
+Before creating a domain profile you have to decide WHICH drugs to download. If
+you do not know the field, this script answers with data: it queries the official
+ClinicalTrials.gov registry, counts in how many trials each drug intervention
+appears for that disease and shows the most studied ones, with their highest
+phase. It does not use the LLM and downloads nothing into the corpus: it only
+looks and suggests.
 
-Uso:
+Usage:
     ./.venv/Scripts/python.exe suggest_drugs.py --disease "Plaque psoriasis"
     ./.venv/Scripts/python.exe suggest_drugs.py --disease "Crohn disease" --top 15 --phase3
 
-Al final imprime un comando build_corpus.py listo para copiar con los N primeros.
-Los nombres salen tal cual los escribe el promotor (a veces un código como
-"FP187"): revisa la lista con criterio antes de usarla.
+At the end it prints a ready-to-copy build_corpus.py command with the top N.
+Names come exactly as the sponsor wrote them (sometimes a code such as "FP187"):
+review the list with judgement before using it.
 """
 
 import argparse
@@ -104,32 +104,32 @@ def count_drugs(estudios, only_phase3=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--disease", required=True, help="enfermedad (en inglés), p. ej. 'Plaque psoriasis'")
-    p.add_argument("--top", type=int, default=10, help="cuántos fármacos listar (def: 10)")
-    p.add_argument("--phase3", action="store_true", help="contar solo ensayos de fase 3/4")
-    p.add_argument("--max-studies", type=int, default=2000, help="tope de ensayos a leer (def: 2000)")
+    p.add_argument("--disease", required=True, help="disease (in English), e.g. 'Plaque psoriasis'")
+    p.add_argument("--top", type=int, default=10, help="how many drugs to list (default: 10)")
+    p.add_argument("--phase3", action="store_true", help="count only phase 3/4 trials")
+    p.add_argument("--max-studies", type=int, default=2000, help="max. number of trials to read (default: 2000)")
     args = p.parse_args()
 
-    print(f"Consultando ClinicalTrials.gov: condición = '{args.disease}' …")
+    print(f"Querying ClinicalTrials.gov: condition = '{args.disease}' …")
     estudios = fetch_studies(args.disease, args.max_studies)
-    print(f"Ensayos leídos: {len(estudios)}")
+    print(f"Trials read: {len(estudios)}")
     conteo = count_drugs(estudios, args.phase3)
     if not conteo:
-        sys.exit("No se encontraron intervenciones farmacológicas. ¿Está bien escrita la enfermedad (en inglés)?")
+        sys.exit("No drug interventions found. Is the disease spelled correctly (in English)?")
 
     top = sorted(conteo.items(), key=lambda kv: (-kv[1]["n"], -kv[1]["phase3"], kv[0]))[:args.top]
     etiqueta = {0: "-", 0.5: "early 1", 1: "1", 2: "2", 3: "3", 4: "4"}
     print()
-    print(f"{'#':>2}  {'fármaco / intervención':32} {'ensayos':>7} {'fase 3/4':>8}  fase máx.")
+    print(f"{'#':>2}  {'drug / intervention':32} {'trials':>7} {'phase 3/4':>9}  max phase")
     print("-" * 66)
     for i, (nombre, c) in enumerate(top, 1):
-        print(f"{i:>2}  {nombre:32} {c['n']:>7} {c['phase3']:>8}  {etiqueta.get(c['best'], '-')}")
+        print(f"{i:>2}  {nombre:32} {c['n']:>7} {c['phase3']:>9}  {etiqueta.get(c['best'], '-')}")
 
     # Hasta dos palabras: cubre "certolizumab pegol" y deja fuera descripciones largas.
     farmacos = [n for n, _ in top if len(n.split()) <= 2][:args.top]
-    print("\nComando sugerido (revísalo: agrupa por clase y quita lo que no sea un fármaco):")
+    print("\nSuggested command (review it: group by class and drop anything that is not a drug):")
     print(f'  ./.venv/Scripts/python.exe build_corpus.py --disease "{args.disease}" ' + chr(92))
-    print(f'      --class "principales={",".join(farmacos)}" --max 50 --activate')
+    print(f'      --class "main={",".join(farmacos)}" --max 50 --activate')
 
 
 if __name__ == "__main__":
