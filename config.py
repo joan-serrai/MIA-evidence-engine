@@ -132,7 +132,7 @@ CHROMA_SPACE = "ip" if EMBEDDING_BACKEND == "medcpt" else "cosine"
 # --------------------------------------------------------------------------
 APP_VERSION = "1.1.0-beta"   # fase experimental: se dice en la interfaz
 # URL del repositorio público. Los comentarios de los usuarios llegan por sus
-# "Issues". PENDIENTE: poner la URL definitiva al publicar en GitHub.
+# "Issues". Fijada el 8-sep-2026 (usuario joan-serrai, repo MIA-evidence-engine).
 REPO_URL = "https://github.com/joan-serrai/MIA-evidence-engine"
 
 # --------------------------------------------------------------------------
