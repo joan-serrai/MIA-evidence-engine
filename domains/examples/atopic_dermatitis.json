@@ -2,7 +2,7 @@
   "slug": "atopic_dermatitis",
   "disease": "Atopic dermatitis",
   "synonyms": [],
-  "description": "Perfil original del capstone: dermatitis atópica y sus fármacos competidores (biológicos anti-IL e inhibidores JAK orales). Sin sinónimos de búsqueda a propósito: el corpus del TFM se descargó con el término exacto 'Atopic dermatitis'.",
+  "description": "Example profile: atopic dermatitis and its competing drugs (anti-interleukin biologics and oral JAK inhibitors). Copy this file to domains/ and run run_phase1.py --domain atopic_dermatitis to download and index its corpus.",
   "drug_classes": {
     "biologics": [
       "dupilumab",
