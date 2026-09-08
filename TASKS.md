@@ -5,8 +5,8 @@ futuras. Se va actualizando a medida que surgen cosas.
 
 Leyenda de estado: ⏳ pendiente · 🔨 en curso · ✅ hecho · 💡 idea a valorar
 
-> **Última revisión: 3-sep-2026.** Tras la auditoría externa (seguridad, calidad,
-> pruebas) y la generalización a cualquier patología (perfiles de dominio).
+> **Última revisión: 8-sep-2026.** Tras añadir la instalación guiada (`setup.bat`),
+> a la espera de la prueba del autor como usuario nuevo y de publicar en GitHub.
 
 ---
 
@@ -22,6 +22,13 @@ el CHANGELOG mira al pasado (qué se hizo y por qué).
 
 ## ⏳ Pendientes
 
+- **Probar `setup.bat` como usuario nuevo (el autor).** Decidido el 8-sep-2026: antes
+  de publicar, el autor repite la instalación desde cero (clon sin `.venv`, corpus
+  vacío, construir un corpus desde la app). Lo que se atasque ahí es lo que hay que
+  arreglar primero. Después: capturas de pantalla de cada paso para el README.
+- **Instalación en Linux/Mac.** `setup.ps1` es solo Windows a propósito (no hay dónde
+  probar otro sistema). Cuando alguien lo pida: `setup.sh` con los mismos ocho pasos,
+  o al menos la lista manual del README verificada en ese sistema.
 - **El modelo usa las citas como sujeto de la frase.** Visto el 4-sep-2026 en
   retinoblastoma: escribió *"Doc 1 and Doc 2 both report…"* y, al quitar las etiquetas
   para recolocarlas, quedó *"Specifically, and both report…"*. `citations.py` debería

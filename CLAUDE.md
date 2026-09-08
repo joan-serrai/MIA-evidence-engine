@@ -85,7 +85,10 @@ Dos "marcas" recurrentes en el código y la UI:
 ```
 
 > Doble clic en **`run.bat`** (que llama a `run.ps1`) hace lo mismo comprobando antes el
-> entorno y Ollama. La app también tiene config de arranque en `.claude/launch.json`
+> entorno y Ollama. En un **equipo nuevo**, antes va **`setup.bat`** (`setup.ps1`, desde el
+> 8-sep-2026): instalación guiada en 8 pasos, idempotente, que pregunta antes de cada
+> descarga; deja el corpus vacío a propósito (el usuario elige la enfermedad en *Build
+> corpus*). Flag `-Yes` para probarlo sin interacción. Solo Windows. La app también tiene config de arranque en `.claude/launch.json`
 > (nombre `mia`, puerto **8524**) para `preview_start {name:"mia"}`.
 
 ### Scripts de la EVALUACIÓN DE EMBEDDINGS (la tesis del capstone)

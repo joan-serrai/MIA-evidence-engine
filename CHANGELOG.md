@@ -25,6 +25,53 @@ Formato de cada entrada: fecha · título · `commit`, y dentro, agrupado por ti
 
 ---
 
+## 2026-09-08 · Instalación guiada (`setup.ps1`) y corpus vacío que envía a *Build corpus*
+
+Origen: alguien preguntó al autor si el repositorio traería *"algún flujo de automatización
+preconfigurado para facilitar la instalación y el arranque inicial de Ollama y ChromaDB"*.
+Hasta hoy la puesta en marcha en un equipo nuevo eran ocho pasos manuales del README, y el
+lanzador `run.ps1` solo comprobaba, no instalaba nada.
+
+Decisiones tomadas con el autor (público: gente que sabe usar una terminal, guiada paso a
+paso): **solo Windows** (es lo único que se puede probar aquí); **no se instalan programas de
+terceros** (Python y Ollama los instala el usuario; el script da el enlace y se detiene);
+**solo el modelo biomédico** (los de evaluación no van en el producto); **el corpus se deja
+vacío a propósito** y el usuario elige su enfermedad en la pestaña *Build corpus*, que ya
+existía; `requirements.lock.txt` como fuente de dependencias (reproduce el entorno probado);
+**confirmación antes de cada descarga grande**, con tamaño y destino.
+
+### Añadido — `setup.ps1` + `setup.bat`
+Ocho pasos: Python (prefiere `py -3.12`, descarta el alias de la Microsoft Store), entorno
+virtual, dependencias, `.env` desde la plantilla, Ollama (si está instalado pero parado lo
+arranca en segundo plano), `ollama pull` del modelo, descarga y prueba de MedCPT (para que la
+primera pregunta no tarde minutos sin explicación), estado del corpus. Es **idempotente**:
+cada paso comprueba antes de hacer, lo hecho sale `[OK]`, nunca sobrescribe. Lee el nombre del
+modelo y el backend **de `config.py`** a través del venv, para no duplicar la fuente de verdad.
+Flag `-Yes` para pruebas/automatización (responde sí a todo y **no** arranca la app al final:
+la primera versión sí lo hacía y bloqueaba el proceso llamador).
+
+### Cambiado — `run.ps1` y la pista del corpus vacío
+`run.ps1` sin venv ahora dice "ejecuta setup.bat" en lugar de los comandos manuales.
+`status.fix_hints` con el corpus vacío mandaba a la terminal (`run_phase1.py`), lo que
+contradecía "elige la enfermedad en la app": ahora el banner nombra el perfil y lleva a la
+pestaña *Build corpus*. README: sección "Desde cero" reescrita alrededor de `setup.bat`, con
+la manual plegada debajo y la nota de que el corpus reconstruido **no es idéntico** al de la
+tesis.
+
+### Medido — cinco caminos probados en este equipo
+Segunda ejecución con todo instalado (todo `[OK]`, sin preguntas, exit 0); Ollama instalado
+pero parado (lo arrancó en un puerto de prueba y siguió); Ollama ausente (detenido en el
+paso 5 con el enlace, exit 1); modelo ausente (apuntando `LLM_MODEL` a `qwen2.5:0.5b`
+temporalmente: lo descargó, lo verificó y lo listó; luego se borró); instalación limpia en
+una copia sin `.venv` (crea el venv, instala el lock, crea `.env` y acaba en "corpus vacío":
+6 min 20 s con las ruedas en caché de pip). **Hallazgo:** el primer intento de instalación
+limpia falló con `WinError 206` (nombre demasiado largo) porque la copia estaba en una ruta de
+~150 caracteres: torch anida mucho dentro de `.venv` y Windows corta en 260. El script avisa
+ahora al arrancar si la ruta del proyecto pasa de 90 caracteres y recomienda `C:\dev\MIA`.
+Pendiente la prueba del autor como usuario nuevo antes de publicar.
+
+---
+
 ## 2026-09-04 (tarde) · Pestañas, corpus desde la app, Scout acotado por MeSH y lectura relacionada
 
 Bloque de seis peticiones del autor tras probar MIA con psoriasis y retinoblastoma.

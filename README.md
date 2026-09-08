@@ -130,6 +130,8 @@ soberano no sacrifica calidad a cambio de privacidad**.
 | Ruta | Qué es | Módulo del curso |
 |------|--------|------------------|
 | `config.py` | Parámetros centrales (enfermedad, fármacos, rutas, modelos) | — |
+| `setup.bat` / `setup.ps1` | **Instalación guiada** de primera vez (venv, dependencias, modelos), paso a paso | 11 (Infra) |
+| `run.bat` / `run.ps1` | Lanzador de un clic: comprueba el entorno y abre la app | 11 (Infra) |
 | `check_setup.py` | Comprobación rápida de que tu entorno funciona | — |
 | `src/ingestion.py` | Descargar evidencia de PubMed y ClinicalTrials.gov | 2-3 (Datos) |
 | `src/processing.py` | Limpiar, trocear (chunks) y vectorizar | 2-3 + 8 |
@@ -165,33 +167,58 @@ soberano no sacrifica calidad a cambio de privacidad**.
 Doble clic en **`run.bat`**. Comprueba el entorno, avisa si Ollama no está en marcha y abre
 la app en el navegador.
 
-### Desde cero (equipo nuevo)
+### Desde cero (equipo nuevo): instalación guiada
 
-1. **Python 3.12** — https://www.python.org/downloads/ (marca *"Add Python to PATH"*).
-2. **Ollama** — https://ollama.com/download, y descarga los tres modelos:
-   ```powershell
-   ollama pull koesn/llama3-openbiollm-8b:q4_K_M
-   ollama pull llama3:8b
-   ollama pull qwen2.5:7b
-   ```
-3. **Entorno virtual y dependencias**:
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-   ```
-   Las versiones están **fijadas** (`==`) a las verificadas el 31-ago-2026. Si algo fallara,
-   `requirements.lock.txt` reproduce el entorno **exacto**, con las 122 librerías del árbol:
-   ```powershell
-   .\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt
-   ```
-4. **Credenciales**: copia `.env.example` a `.env` y rellena `OPENAI_API_KEY`
-   (solo hace falta para la comparativa; el producto MIA no la usa).
-5. **Comprueba que todo arranca**:
-   ```powershell
-   .\.venv\Scripts\python.exe check_setup.py
-   .\.venv\Scripts\python.exe ver_db.py
-   ```
-6. **Arranca la app**: doble clic en `run.bat`.
+Solo dos programas los instalas tú (son de terceros y no los instalamos a tus espaldas):
+
+1. **Python 3.12** — https://www.python.org/downloads/ (marca *"Add python.exe to PATH"*).
+2. **Ollama** — https://ollama.com/download (siguiente, siguiente; se queda en la bandeja).
+
+Después, **doble clic en `setup.bat`**. Se abre una ventana de terminal que va paso a paso
+(8 pasos) y **pregunta antes de cada descarga grande**, diciendo cuánto ocupa y dónde queda:
+
+| Paso | Qué hace | Descarga |
+|------|----------|----------|
+| 1-2 | Localiza Python y crea el entorno virtual `.venv` | — |
+| 3 | Instala las dependencias fijadas (`requirements.lock.txt`) | 1,6 GB |
+| 4 | Crea `.env` vacío a partir de `.env.example` (no hay que rellenar nada) | — |
+| 5 | Comprueba que Ollama responde (si está instalado pero parado, lo arranca) | — |
+| 6 | Descarga el modelo biomédico OpenBioLLM 8B con `ollama pull` | 4,9 GB |
+| 7 | Descarga los encoders de MedCPT (embeddings) desde HuggingFace | 0,8 GB |
+| 8 | Informa de que el corpus está **vacío**: lo eliges tú en la app | 0 |
+
+Si falta Python u Ollama, el script lo dice, da el enlace y se detiene; al volver a
+ejecutarlo continúa donde se quedó. Se puede lanzar tantas veces como haga falta: lo que
+ya está hecho lo salta con un `[OK]`.
+
+> La primera vez Windows puede mostrar *"Windows protegió su PC"* porque el archivo no
+> está firmado: pulsa *Más información → Ejecutar de todas formas*.
+
+Al terminar, **doble clic en `run.bat`** abre MIA. Como el corpus está vacío, la app lo avisa
+y te lleva a la pestaña **Build corpus**: escribe la enfermedad, pulsa *Suggest drugs*, elige
+los fármacos y construye el corpus (de 10 a 60 minutos según la cobertura). A partir de ahí,
+pregunta.
+
+> **Nota sobre el corpus de la tesis.** Un usuario que elija *dermatitis atópica* reconstruye
+> el corpus desde PubMed y ClinicalTrials; obtiene uno parecido pero **no idéntico** al de la
+> memoria (parte del original vino de un export manual que ya no existe, ver `CLAUDE.md` §8).
+
+<details>
+<summary>Instalación manual (los mismos pasos, a mano)</summary>
+
+```powershell
+ollama pull koesn/llama3-openbiollm-8b:q4_K_M      # solo este para el producto
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt   # entorno exacto (135 paquetes)
+copy .env.example .env
+.\.venv\Scripts\python.exe check_setup.py
+```
+
+`requirements.txt` lleva solo las dependencias directas, también fijadas (`==`); el lock
+reproduce el árbol completo verificado el 31-ago-2026. Para la comparativa y la evaluación
+(rama `master`) hacen falta además `ollama pull llama3:8b`, `ollama pull qwen2.5:7b` y una
+`OPENAI_API_KEY` en `.env`.
+</details>
 
 > ⚠️ Las preguntas hay que hacerlas **en inglés**: el corpus y el LLM biomédico lo son, y
 > OpenBioLLM degenera si se le habla en español. Ver `CLAUDE.md` §6.

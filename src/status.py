@@ -82,8 +82,14 @@ def fix_hints(status):
             hints.append(f"The biomedical model is missing. Download it with:  "
                          f"ollama pull {m}")
     if not status["corpus"]["ok"]:
-        hints.append("The vector corpus is empty. Index it with:  "
-                     "python run_phase1.py")
+        # Desde el 8-sep-2026 el corpus se construye desde la app: en una
+        # instalación nueva (setup.ps1) la base vectorial está VACÍA a propósito
+        # y el usuario elige la enfermedad en la pestaña "Build corpus". Antes
+        # el aviso mandaba a la terminal (run_phase1.py), que contradecía eso.
+        hints.append(f"No corpus yet for the profile '{config.DISEASE}'. "
+                     "Build one in the **Build corpus** tab: type the disease, "
+                     "press *Suggest drugs*, pick the drugs and index (10-60 min). "
+                     "Or, from a terminal:  python build_corpus.py --help")
     return hints
 
 

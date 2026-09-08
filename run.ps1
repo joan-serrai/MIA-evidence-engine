@@ -15,9 +15,9 @@ Write-Host "==================================================" -ForegroundColor
 # 1) Entorno virtual
 if (-not (Test-Path $py)) {
     Write-Host "[X] No encuentro el entorno virtual (.venv)." -ForegroundColor Red
-    Write-Host "    Crealo una vez con:" -ForegroundColor Yellow
-    Write-Host "      python -m venv .venv" -ForegroundColor Yellow
-    Write-Host "      .\.venv\Scripts\python.exe -m pip install -r requirements.txt" -ForegroundColor Yellow
+    Write-Host "    Parece la primera vez en este equipo. Ejecuta la instalacion guiada:" -ForegroundColor Yellow
+    Write-Host "      doble clic en setup.bat" -ForegroundColor Yellow
+    Write-Host "    (crea el entorno, instala las dependencias y descarga los modelos, preguntando antes)" -ForegroundColor DarkYellow
     Read-Host "`nPulsa Enter para salir"
     exit 1
 }
